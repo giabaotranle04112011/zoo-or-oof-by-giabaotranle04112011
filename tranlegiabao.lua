@@ -1,8 +1,8 @@
 -- // =================================================================
--- // RB ZOO SUPER PREMIUM 2026 - ULTIMATE V6.5 (SMART WALL BYPASS EDITION)
+-- // RB ZOO SUPER PREMIUM 2026 - ULTIMATE V6.5 (INSTANT KEY BYPASS)
 -- // COPYRIGHT © 2026 TRẦN LÊ GIA BẢO. ALL RIGHTS RESERVED.
 -- // Engineered with Real-Time Hunter AI, Quad-Cache & Anti-Lag Engine.
--- // Integrated with Secure Key System & Admin Bypass Code.
+-- // Integrated with GitHub Commit SHA Live Fetching (0s Cache Delay).
 -- // =================================================================
 
 local Engine = {
@@ -13,6 +13,13 @@ local Engine = {
     Status = "Booting",
     Author = "Trần Lê Gia Bảo"
 }
+
+-- Hàm chuẩn hóa chuỗi tuyệt đối (Xóa khoảng trắng, xuống dòng \r \n và viết hoa)
+local function CleanStr(str)
+    if not str or typeof(str) ~= "string" then return "" end
+    str = str:gsub("%s+", ""):gsub("[%r%n]", "")
+    return str:upper()
+end
 
 -- ==========================================
 -- [1] SERVICES & GLOBALS
@@ -207,36 +214,79 @@ Engine.Modules.LoadingScreen = {
 }
 
 -- ==========================================
--- [4.5] KEY SYSTEM & ADMIN BYPASS MODULE (ONLINE CHECK)
+-- [4.5] KEY SYSTEM & INSTANT LIVE FETCH MODULE
 -- ==========================================
 Engine.Modules.KeySystem = {
     KeyURL = "https://tlgbgetkey.netlify.app/",
-    OnlineKeyListURL = "https://raw.githubusercontent.com/giabaotranle04112011/getkey/main/keys.json",
+    RepoOwner = "giabaotranle04112011",
+    RepoName = "getkey",
+    FilePath = "keys.json",
     KeySaveFile = "RBZoo_SavedKey_V6.json",
     AdminKey = "14142022",
     CurrentKey = nil,
     CurrentKeyType = nil,
 
-    ValidateKeyFormat = function(self, inputKey)
-        if not inputKey or typeof(inputKey) ~= "string" then return false, "EMPTY" end
-        inputKey = inputKey:gsub("%s+", "") -- Bỏ khoảng trắng
+    -- Hàm tải nội dung không qua Cache Fastly của GitHub
+    FetchLatestKeysJSON = function(self)
+        local httpRequest = (syn and syn.request) or (http and http.request) or request or http_request
         
-        -- Kiểm tra mã Admin
-        if inputKey == self.AdminKey then
-            return true, "ADMIN"
+        local function httpGetRaw(targetUrl)
+            if httpRequest then
+                local success, res = pcall(function()
+                    return httpRequest({
+                        Url = targetUrl,
+                        Method = "GET",
+                        Headers = {
+                            ["Cache-Control"] = "no-cache, no-store, must-revalidate",
+                            ["Pragma"] = "no-cache"
+                        }
+                    })
+                end)
+                if success and res and res.Body then return res.Body end
+            end
+            local ok, body = pcall(function() return game:HttpGet(targetUrl) end)
+            if ok then return body end
+            return nil
         end
 
-        -- Kiểm tra định dạng Key từ Web: TLGB-XXXX-XXXX
-        local b1, b2 = inputKey:match("^TLGB%-([A-Z0-9]+)%-([A-Z0-9]+)$")
+        -- Phương pháp 1: Lấy Commit SHA mới nhất từ GitHub API (Không bị cache)
+        local commitApiUrl = string.format("https://api.github.com/repos/%s/%s/commits/main", self.RepoOwner, self.RepoName)
+        local apiResponse = httpGetRaw(commitApiUrl)
+        
+        if apiResponse then
+            local ok, commitData = pcall(function() return Engine.Services.HttpService:JSONDecode(apiResponse) end)
+            if ok and commitData and commitData.sha then
+                local shaUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", self.RepoOwner, self.RepoName, commitData.sha, self.FilePath)
+                local shaRawContent = httpGetRaw(shaUrl)
+                if shaRawContent then
+                    return shaRawContent
+                end
+            end
+        end
+
+        -- Phương pháp 2: Link Raw + Query nocache làm dự phòng
+        local directUrl = string.format("https://raw.githubusercontent.com/%s/%s/main/%s?nocache=%d", self.RepoOwner, self.RepoName, self.FilePath, os.time())
+        return httpGetRaw(directUrl)
+    end,
+
+    ValidateKeyFormat = function(self, inputKey)
+        local cleaned = CleanStr(inputKey)
+        if cleaned == "" then return false, "EMPTY", "" end
+        
+        if cleaned == CleanStr(self.AdminKey) then
+            return true, "ADMIN", cleaned
+        end
+
+        local b1, b2 = cleaned:match("^TLGB%-([A-Z0-9]+)%-([A-Z0-9]+)$")
         if b1 and b2 and #b1 == 4 and #b2 == 4 then
-            return true, "USER"
+            return true, "USER", cleaned
         end
 
-        return false, "INVALID"
+        return false, "INVALID", cleaned
     end,
 
     VerifyKeyOnline = function(self, inputKey)
-        local isValidFormat, keyType = self:ValidateKeyFormat(inputKey)
+        local isValidFormat, keyType, cleanedInput = self:ValidateKeyFormat(inputKey)
         if not isValidFormat then
             return false, "Cú pháp Key không đúng!"
         end
@@ -245,12 +295,10 @@ Engine.Modules.KeySystem = {
             return true, "ADMIN"
         end
 
-        -- Tải danh sách Key từ GitHub (có query nocache để cập nhật ngay lập tức)
-        local success, response = pcall(function()
-            return game:HttpGet(self.OnlineKeyListURL .. "?nocache=" .. tostring(tick()))
-        end)
+        -- Tải dữ liệu JSON mới nhất trực tiếp từ Server GitHub
+        local response = self:FetchLatestKeysJSON()
 
-        if not success or not response then
+        if not response then
             return false, "Lỗi kết nối Server xác minh Key!"
         end
 
@@ -262,9 +310,8 @@ Engine.Modules.KeySystem = {
             return false, "Dữ liệu Server Key bị lỗi!"
         end
 
-        -- Đối chiếu xem Key nhập có nằm trong danh sách GitHub không
         for _, validKey in ipairs(validKeys) do
-            if validKey == inputKey then
+            if CleanStr(validKey) == cleanedInput then
                 return true, "USER"
             end
         end
@@ -281,7 +328,7 @@ Engine.Modules.KeySystem = {
                 local isValidOnline, keyType = self:VerifyKeyOnline(result.Key)
                 if isValidOnline then
                     if keyType == "ADMIN" or (os.time() - result.Timestamp < 86400) then
-                        self.CurrentKey = result.Key
+                        self.CurrentKey = CleanStr(result.Key)
                         self.CurrentKeyType = keyType
                         return true, result.Key, keyType
                     end
@@ -294,9 +341,10 @@ Engine.Modules.KeySystem = {
     SaveKeyLocally = function(self, key, keyType)
         if writefile then
             pcall(function()
-                local data = { Key = key, Timestamp = os.time() }
+                local cleanedKey = CleanStr(key)
+                local data = { Key = cleanedKey, Timestamp = os.time() }
                 writefile(self.KeySaveFile, Engine.Services.HttpService:JSONEncode(data))
-                self.CurrentKey = key
+                self.CurrentKey = cleanedKey
                 self.CurrentKeyType = keyType
             end)
         end
@@ -520,7 +568,7 @@ Engine.Modules.KeySystem = {
 }
 
 -- ==========================================
--- [5] FORCE ZOOKEEPER ENGINE (100% ZOO MODE)
+-- [5] FORCE ZOOKEEPER ENGINE
 -- ==========================================
 Engine.Modules.TeamForce = {
     Init = function(self)
@@ -952,7 +1000,8 @@ Engine.Modules.FarmManager = {
     
     Start = function(self)
         self:Stop()
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
         if not hrp then return end
         self.StuckTracker.LastPos = hrp.Position
         
@@ -1234,6 +1283,7 @@ end)
 -- ==========================================
 Engine.Modules.UIController = {
     ChromaObjects = {},
+    Toggles = {},
     MainFrame = nil,
     LogoButton = nil,
     
@@ -1341,15 +1391,31 @@ Engine.Modules.UIController = {
             end
         end)
         
-        Engine.Services.UIS.InputBegan:Connect(function(input, gp)
-            if gp then return end
+        -- LẮNG NGHE PHÍM TẮT HOTKEY (XỬ LÝ LỖI PHÍM P)
+        Engine.Services.UIS.InputBegan:Connect(function(input)
+            if Engine.Services.UIS:GetFocusedTextBox() then return end
+            if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
             if input.KeyCode == Enum.KeyCode.RightShift then
-                self.MainFrame.Visible = not self.MainFrame.Visible
+                if self.MainFrame then
+                    self.MainFrame.Visible = not self.MainFrame.Visible
+                end
             elseif input.KeyCode == Enum.KeyCode.P then
-                Engine.Modules.ConfigManager.Settings.AutoFarm = not Engine.Modules.ConfigManager.Settings.AutoFarm
+                local newState = not Engine.Modules.ConfigManager.Settings.AutoFarm
+                Engine.Modules.ConfigManager.Settings.AutoFarm = newState
                 Engine.Modules.ConfigManager:Save()
-                if Engine.Modules.ConfigManager.Settings.AutoFarm then Engine.Modules.FarmManager:Start() else Engine.Modules.FarmManager:Stop() end
-                Engine.Modules.NotificationManager:Notify("Hotkey Triggered", "Hunter AI: " .. tostring(Engine.Modules.ConfigManager.Settings.AutoFarm), 2)
+                
+                if newState then 
+                    Engine.Modules.FarmManager:Start() 
+                else 
+                    Engine.Modules.FarmManager:Stop() 
+                end
+
+                if self.Toggles["AutoFarm"] then
+                    self.Toggles["AutoFarm"](newState)
+                end
+
+                Engine.Modules.NotificationManager:Notify("Hotkey Triggered", "Hunter AI Auto Farm: " .. (newState and "BẬT [ON]" or "TẮT [OFF]"), 2)
             end
         end)
     end,
@@ -1507,7 +1573,6 @@ Engine.Modules.UIController = {
             end
         end)
         
-        -- Nút Logout / Đăng xuất Key
         local btnLogout = Instance.new("TextButton")
         btnLogout.Size = UDim2.new(1, -24, 0, 36)
         btnLogout.Position = UDim2.new(0, 12, 0, 92)
@@ -1564,11 +1629,7 @@ Engine.Modules.UIController = {
         
         if Engine.Modules.ConfigManager.Settings[configKey] then table.insert(self.ChromaObjects, toggleBtn) end
         
-        toggleBtn.MouseButton1Click:Connect(function()
-            local newState = not Engine.Modules.ConfigManager.Settings[configKey]
-            Engine.Modules.ConfigManager.Settings[configKey] = newState
-            Engine.Modules.ConfigManager:Save()
-            
+        local function updateVisual(newState)
             toggleBtn.Name = newState and "ToggledBG" or "OffBG"
             local goalPos = newState and UDim2.new(1, -20, 0, 2) or UDim2.new(0, 2, 0, 2)
             local goalColor = newState and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(45, 52, 68)
@@ -1579,6 +1640,15 @@ Engine.Modules.UIController = {
             if newState then table.insert(self.ChromaObjects, toggleBtn) else
                 for i, obj in ipairs(self.ChromaObjects) do if obj == toggleBtn then table.remove(self.ChromaObjects, i) break end end
             end
+        end
+
+        self.Toggles[configKey] = updateVisual
+
+        toggleBtn.MouseButton1Click:Connect(function()
+            local newState = not Engine.Modules.ConfigManager.Settings[configKey]
+            Engine.Modules.ConfigManager.Settings[configKey] = newState
+            Engine.Modules.ConfigManager:Save()
+            updateVisual(newState)
             if callback then callback(newState) end
         end)
     end,
