@@ -2,6 +2,7 @@
 -- // RB ZOO SUPER PREMIUM 2026 - ULTIMATE V6.5 (SMART WALL BYPASS EDITION)
 -- // COPYRIGHT © 2026 TRẦN LÊ GIA BẢO. ALL RIGHTS RESERVED.
 -- // Engineered with Real-Time Hunter AI, Quad-Cache & Anti-Lag Engine.
+-- // Integrated with Secure Key System & Admin Bypass Code.
 -- // =================================================================
 
 local Engine = {
@@ -171,8 +172,8 @@ Engine.Modules.LoadingScreen = {
             {time = 1.0, text = "[1/5] Nạp Service & Cấu hình Config..."},
             {time = 2.0, text = "[2/5] Kích hoạt Engine Tối ưu hóa FPS..."},
             {time = 3.0, text = "[3/5] Khắc phục góc bắn dính tường (Smart Wall Bypass)..."},
-            {time = 4.0, text = "[4/5] Đang kết nối Hunter AI & Force Zoo Mode..."},
-            {time = 5.0, text = "[5/5] Sẵn sàng! Đang mở giao diện..."}
+            {time = 4.0, text = "[4/5] Kết nối Hunter AI & Kiểm tra Key xác thực..."},
+            {time = 5.0, text = "[5/5] Tải hoàn tất!"}
         }
 
         local startTime = tick()
@@ -202,6 +203,319 @@ Engine.Modules.LoadingScreen = {
         Engine.Services.TweenService:Create(stroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
         task.wait(0.4)
         sg:Destroy()
+    end
+}
+
+-- ==========================================
+-- [4.5] KEY SYSTEM & ADMIN BYPASS MODULE (ONLINE CHECK)
+-- ==========================================
+Engine.Modules.KeySystem = {
+    KeyURL = "https://tlgbgetkey.netlify.app/",
+    OnlineKeyListURL = "https://raw.githubusercontent.com/giabaotranle04112011/getkey/main/keys.json",
+    KeySaveFile = "RBZoo_SavedKey_V6.json",
+    AdminKey = "14142022",
+    CurrentKey = nil,
+    CurrentKeyType = nil,
+
+    ValidateKeyFormat = function(self, inputKey)
+        if not inputKey or typeof(inputKey) ~= "string" then return false, "EMPTY" end
+        inputKey = inputKey:gsub("%s+", "") -- Bỏ khoảng trắng
+        
+        -- Kiểm tra mã Admin
+        if inputKey == self.AdminKey then
+            return true, "ADMIN"
+        end
+
+        -- Kiểm tra định dạng Key từ Web: TLGB-XXXX-XXXX
+        local b1, b2 = inputKey:match("^TLGB%-([A-Z0-9]+)%-([A-Z0-9]+)$")
+        if b1 and b2 and #b1 == 4 and #b2 == 4 then
+            return true, "USER"
+        end
+
+        return false, "INVALID"
+    end,
+
+    VerifyKeyOnline = function(self, inputKey)
+        local isValidFormat, keyType = self:ValidateKeyFormat(inputKey)
+        if not isValidFormat then
+            return false, "Cú pháp Key không đúng!"
+        end
+        
+        if keyType == "ADMIN" then
+            return true, "ADMIN"
+        end
+
+        -- Tải danh sách Key từ GitHub (có query nocache để cập nhật ngay lập tức)
+        local success, response = pcall(function()
+            return game:HttpGet(self.OnlineKeyListURL .. "?nocache=" .. tostring(tick()))
+        end)
+
+        if not success or not response then
+            return false, "Lỗi kết nối Server xác minh Key!"
+        end
+
+        local decodeSuccess, validKeys = pcall(function()
+            return Engine.Services.HttpService:JSONDecode(response)
+        end)
+
+        if not decodeSuccess or typeof(validKeys) ~= "table" then
+            return false, "Dữ liệu Server Key bị lỗi!"
+        end
+
+        -- Đối chiếu xem Key nhập có nằm trong danh sách GitHub không
+        for _, validKey in ipairs(validKeys) do
+            if validKey == inputKey then
+                return true, "USER"
+            end
+        end
+
+        return false, "Key không tồn tại trên hệ thống!"
+    end,
+
+    CheckSavedKey = function(self)
+        if isfile and readfile and isfile(self.KeySaveFile) then
+            local success, result = pcall(function()
+                return Engine.Services.HttpService:JSONDecode(readfile(self.KeySaveFile))
+            end)
+            if success and result and result.Key and result.Timestamp then
+                local isValidOnline, keyType = self:VerifyKeyOnline(result.Key)
+                if isValidOnline then
+                    if keyType == "ADMIN" or (os.time() - result.Timestamp < 86400) then
+                        self.CurrentKey = result.Key
+                        self.CurrentKeyType = keyType
+                        return true, result.Key, keyType
+                    end
+                end
+            end
+        end
+        return false, nil, nil
+    end,
+
+    SaveKeyLocally = function(self, key, keyType)
+        if writefile then
+            pcall(function()
+                local data = { Key = key, Timestamp = os.time() }
+                writefile(self.KeySaveFile, Engine.Services.HttpService:JSONEncode(data))
+                self.CurrentKey = key
+                self.CurrentKeyType = keyType
+            end)
+        end
+    end,
+
+    GetRemainingTime = function(self)
+        if not self.CurrentKey then
+            self:CheckSavedKey()
+        end
+        if self.CurrentKeyType == "ADMIN" then
+            return "Vĩnh viễn (Admin)"
+        end
+        if isfile and readfile and isfile(self.KeySaveFile) then
+            local success, result = pcall(function()
+                return Engine.Services.HttpService:JSONDecode(readfile(self.KeySaveFile))
+            end)
+            if success and result and result.Timestamp then
+                local elapsed = os.time() - result.Timestamp
+                local remaining = 86400 - elapsed
+                if remaining <= 0 then
+                    return "Đã hết hạn!"
+                end
+                local hours = math.floor(remaining / 3600)
+                local mins = math.floor((remaining % 3600) / 60)
+                local secs = remaining % 60
+                return string.format("%02dh %02dm %02ds", hours, mins, secs)
+            end
+        end
+        return "N/A"
+    end,
+
+    Logout = function(self)
+        pcall(function()
+            if delfile and isfile and isfile(self.KeySaveFile) then
+                delfile(self.KeySaveFile)
+            elseif writefile then
+                writefile(self.KeySaveFile, "")
+            end
+        end)
+        
+        self.CurrentKey = nil
+        self.CurrentKeyType = nil
+        Engine.Modules.FarmManager:Stop()
+        
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        for _, guiName in ipairs({"RBZoo_V6_UI_LiquidGlass", "RBZoo_Hunter_HUD_V6", "RBZoo_V6_Notifications"}) do
+            local g = coreGui:FindFirstChild(guiName)
+            if g then g:Destroy() end
+        end
+        
+        table.clear(Engine.Modules.UIController.ChromaObjects)
+        
+        task.spawn(function()
+            local keyVerified = self:PromptKeyUI()
+            if keyVerified then
+                Engine:BootAfterKey()
+            end
+        end)
+    end,
+
+    PromptKeyUI = function(self)
+        local isAlreadyValid, savedKey, keyType = self:CheckSavedKey()
+        if isAlreadyValid then
+            return true
+        end
+
+        local verified = false
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_KeySystem_UI"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
+
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(1, 0, 1, 0)
+        bg.BackgroundColor3 = Color3.fromRGB(8, 10, 16)
+        bg.BackgroundTransparency = 0.2
+        bg.Parent = sg
+
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(0, 420, 0, 260)
+        card.Position = UDim2.new(0.5, -210, 0.5, -130)
+        card.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
+        card.Parent = bg
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16)
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 2
+        stroke.Color = Color3.fromRGB(0, 210, 255)
+        stroke.Parent = card
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 35)
+        title.Position = UDim2.new(0, 0, 0, 15)
+        title.BackgroundTransparency = 1
+        title.Text = "🔐 HỆ THỐNG XÁC THỰC KEY"
+        title.Font = Enum.Font.GothamBlack
+        title.TextSize = 16
+        title.TextColor3 = Color3.fromRGB(0, 210, 255)
+        title.Parent = card
+
+        local desc = Instance.new("TextLabel")
+        desc.Size = UDim2.new(1, -40, 0, 30)
+        desc.Position = UDim2.new(0, 20, 0, 48)
+        desc.BackgroundTransparency = 1
+        desc.Text = "Vui lòng lấy Key tại trang web hoặc nhập Mã Admin để tiếp tục sử dụng Script."
+        desc.Font = Enum.Font.GothamMedium
+        desc.TextSize = 11
+        desc.TextColor3 = Color3.fromRGB(180, 195, 215)
+        desc.TextWrapped = true
+        desc.Parent = card
+
+        local textBoxBg = Instance.new("Frame")
+        textBoxBg.Size = UDim2.new(0.85, 0, 0, 42)
+        textBoxBg.Position = UDim2.new(0.075, 0, 0, 90)
+        textBoxBg.BackgroundColor3 = Color3.fromRGB(25, 32, 48)
+        textBoxBg.Parent = card
+        Instance.new("UICorner", textBoxBg).CornerRadius = UDim.new(0, 10)
+
+        local tbStroke = Instance.new("UIStroke")
+        tbStroke.Thickness = 1
+        tbStroke.Color = Color3.fromRGB(0, 210, 255)
+        tbStroke.Transparency = 0.5
+        tbStroke.Parent = textBoxBg
+
+        local keyBox = Instance.new("TextBox")
+        keyBox.Size = UDim2.new(1, -20, 1, 0)
+        keyBox.Position = UDim2.new(0, 10, 0, 0)
+        keyBox.BackgroundTransparency = 1
+        keyBox.PlaceholderText = "Nhập Key (TLGB-XXXX-XXXX) hoặc Mã Admin..."
+        keyBox.PlaceholderColor3 = Color3.fromRGB(110, 125, 145)
+        keyBox.Text = ""
+        keyBox.Font = Enum.Font.GothamBold
+        keyBox.TextSize = 12
+        keyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+        keyBox.Parent = textBoxBg
+
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Size = UDim2.new(1, 0, 0, 20)
+        statusLabel.Position = UDim2.new(0, 0, 0, 138)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = ""
+        statusLabel.Font = Enum.Font.GothamBold
+        statusLabel.TextSize = 11
+        statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        statusLabel.Parent = card
+
+        local btnGetKey = Instance.new("TextButton")
+        btnGetKey.Size = UDim2.new(0.4, 0, 0, 40)
+        btnGetKey.Position = UDim2.new(0.075, 0, 0, 168)
+        btnGetKey.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+        btnGetKey.Text = "🌐 LẤY KEY"
+        btnGetKey.Font = Enum.Font.GothamBlack
+        btnGetKey.TextSize = 12
+        btnGetKey.TextColor3 = Color3.fromRGB(0, 210, 255)
+        btnGetKey.Parent = card
+        Instance.new("UICorner", btnGetKey).CornerRadius = UDim.new(0, 10)
+
+        local btnVerify = Instance.new("TextButton")
+        btnVerify.Size = UDim2.new(0.4, 0, 0, 40)
+        btnVerify.Position = UDim2.new(0.525, 0, 0, 168)
+        btnVerify.BackgroundColor3 = Color3.fromRGB(0, 210, 255)
+        btnVerify.Text = "✔️ XÁC NHẬN KEY"
+        btnVerify.Font = Enum.Font.GothamBlack
+        btnVerify.TextSize = 12
+        btnVerify.TextColor3 = Color3.fromRGB(10, 15, 25)
+        btnVerify.Parent = card
+        Instance.new("UICorner", btnVerify).CornerRadius = UDim.new(0, 10)
+
+        local authorSub = Instance.new("TextLabel")
+        authorSub.Size = UDim2.new(1, 0, 0, 20)
+        authorSub.Position = UDim2.new(0, 0, 0, 222)
+        authorSub.BackgroundTransparency = 1
+        authorSub.Text = "Bản quyền: " .. Engine.Author .. " • Key có hiệu lực 24h"
+        authorSub.Font = Enum.Font.GothamMedium
+        authorSub.TextSize = 9
+        authorSub.TextColor3 = Color3.fromRGB(100, 115, 135)
+        authorSub.Parent = card
+
+        btnGetKey.MouseButton1Click:Connect(function()
+            if setclipboard or toclipboard then
+                (setclipboard or toclipboard)(self.KeyURL)
+                statusLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
+                statusLabel.Text = "✓ Đã sao chép Link Get Key vào bộ nhớ tạm!"
+            else
+                statusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+                statusLabel.Text = "Link: " .. self.KeyURL
+            end
+        end)
+
+        btnVerify.MouseButton1Click:Connect(function()
+            local input = keyBox.Text
+            statusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+            statusLabel.Text = "⏳ Đang kết nối Server kiểm tra Key..."
+
+            task.spawn(function()
+                local isValidOnline, resultMessage = self:VerifyKeyOnline(input)
+
+                if isValidOnline then
+                    self:SaveKeyLocally(input, resultMessage)
+                    statusLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
+                    if resultMessage == "ADMIN" then
+                        statusLabel.Text = "👑 Đã kích hoạt CHẾ ĐỘ ADMIN BYPASS!"
+                    else
+                        statusLabel.Text = "✓ Key hợp lệ! Đang mở Script..."
+                    end
+                    task.wait(0.8)
+                    verified = true
+                    sg:Destroy()
+                else
+                    statusLabel.TextColor3 = Color3.fromRGB(255, 70, 70)
+                    statusLabel.Text = "❌ " .. tostring(resultMessage)
+                end
+            end)
+        end)
+
+        repeat task.wait(0.1) until verified
+        return true
     end
 }
 
@@ -353,7 +667,7 @@ Engine.Modules.HunterHUD = {
         self.Gui = sg
         
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 240, 0, 155)
+        frame.Size = UDim2.new(0, 240, 0, 175)
         frame.Position = UDim2.new(0, 15, 0.3, 0)
         frame.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
         frame.BackgroundTransparency = 0.32
@@ -404,7 +718,8 @@ Engine.Modules.HunterHUD = {
         addLabel("Status", "Status: Idle").LayoutOrder = 3
         addLabel("OofAlive", "OOF Alive: 0").LayoutOrder = 4
         addLabel("Kills", "Total Kills: 0").LayoutOrder = 5
-        addLabel("Author", "Owner: " .. Engine.Author).LayoutOrder = 6
+        addLabel("KeyTime", "⏳ Key Hạn: N/A").LayoutOrder = 6
+        addLabel("Author", "Owner: " .. Engine.Author).LayoutOrder = 7
         
         Engine.Services.RunService.RenderStepped:Connect(function()
             if not Engine.Modules.ConfigManager.Settings.ShowHUD then
@@ -434,6 +749,7 @@ Engine.Modules.HunterHUD = {
             self.Labels.Status.Text = "Status: " .. statusStr
             self.Labels.OofAlive.Text = "OOF Alive: " .. tostring(#Engine.Cache.Oofs)
             self.Labels.Kills.Text = "Total Kills: " .. tostring(Engine.Cache.TotalKills)
+            self.Labels.KeyTime.Text = "⏳ Key Hạn: " .. Engine.Modules.KeySystem:GetRemainingTime()
             self.Labels.Author.Text = "👑 Author: " .. Engine.Author
         end)
     end
@@ -606,7 +922,6 @@ local function IsTargetValid(target)
     return true
 end
 
--- Hàm kiểm tra tia tầm nhìn (Line Of Sight) chống dính tường
 local function CheckLineOfSight(originPos, targetPos, ignoreModel)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -621,11 +936,11 @@ local function CheckLineOfSight(originPos, targetPos, ignoreModel)
 
     if result then
         if ignoreModel and result.Instance:IsDescendantOf(ignoreModel) then
-            return true -- Trúng target
+            return true
         end
-        return false -- Vướng tường
+        return false
     end
-    return true -- Tầm nhìn trống
+    return true
 end
 
 -- ==========================================
@@ -703,7 +1018,6 @@ Engine.Modules.FarmManager = {
             hrp.AssemblyLinearVelocity = Vector3.zero
             hrp.AssemblyAngularVelocity = Vector3.zero
             
-            -- Tự động tắt va chạm nhân vật khi Auto Farm để không bị dính tường
             for _, part in ipairs(char:GetChildren()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
@@ -730,11 +1044,9 @@ Engine.Modules.FarmManager = {
                     local targetCFrame = Engine.State.CurrentTarget.CFrame
                     local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
                     
-                    -- THUẬT TOÁN KHẮC PHỤC DÍNH TƯỜNG (SMART WALL BYPASS):
                     if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
                         local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
                         if not hasLOS then
-                            -- Nếu vướng tường: Bay lên cao trực diện trên đầu OOF để tạo tầm nhìn thẳng 100%
                             destination = targetPos + Vector3.new(0, 14, 0) + self.StuckTracker.OffsetVector
                         else
                             destination = defaultPos
@@ -1069,7 +1381,7 @@ Engine.Modules.UIController = {
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, 0, 0, 36)
             btn.BackgroundTransparency = 1
-            btn.Text = "   " .. name
+            btn.Text = "    " .. name
             btn.TextColor3 = Color3.fromRGB(180, 195, 215)
             btn.Font = Enum.Font.GothamBold
             btn.TextSize = 12
@@ -1110,7 +1422,9 @@ Engine.Modules.UIController = {
         local pageCombat = createTab("⚡ Combat AI", false)
         local pageFarm = createTab("🤖 Automation", false)
         local pageMovement = createTab("🚀 Movement", false)
+        local pageKey = createTab("🔑 Key System", false)
         
+        -- Tab Team Force
         self:CreateToggle(pageForce, "Ép phe Zookeeper 100%", "ForceZookeeper", function(v)
             if v then Engine.Modules.TeamForce:TryForceZoo() end
         end)
@@ -1119,6 +1433,7 @@ Engine.Modules.UIController = {
             if v then Engine.Modules.PerformanceBooster:Init() end
         end)
         
+        -- Tab Combat AI
         self:CreateToggle(pageCombat, "Smart Aimbot [M]", "Aimbot")
         self:CreateSlider(pageCombat, "Aimbot FOV", 50, 600, "AimbotFOV")
         self:CreateSlider(pageCombat, "Aimbot Smooth", 0.05, 1, "AimbotSmooth")
@@ -1126,6 +1441,7 @@ Engine.Modules.UIController = {
         self:CreateToggle(pageCombat, "Auto Skill (Q / E)", "AutoSkill")
         self:CreateSlider(pageCombat, "Expand Hitbox", 2, 25, "HitboxSize")
         
+        -- Tab Automation
         self:CreateToggle(pageFarm, "Hunter AI Auto Farm [P]", "AutoFarm", function(v)
             if v then Engine.Modules.FarmManager:Start() else Engine.Modules.FarmManager:Stop() end
         end)
@@ -1136,12 +1452,76 @@ Engine.Modules.UIController = {
         self:CreateToggle(pageFarm, "Auto Money", "AutoMoney")
         self:CreateToggle(pageFarm, "Anti-AFK (24/7)", "AntiAFK")
         
+        -- Tab Movement
         self:CreateToggle(pageMovement, "Fly", "Fly")
         self:CreateSlider(pageMovement, "Fly Speed", 50, 350, "FlySpeed")
         self:CreateToggle(pageMovement, "WalkSpeed", "Speed")
         self:CreateSlider(pageMovement, "Speed Value", 16, 100, "SpeedValue")
         self:CreateToggle(pageMovement, "Noclip", "Noclip")
         self:CreateToggle(pageMovement, "Infinite Jump", "InfJump")
+        
+        -- Tab Key System
+        local keyCard = Instance.new("Frame")
+        keyCard.Size = UDim2.new(1, -10, 0, 140)
+        keyCard.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        keyCard.BackgroundTransparency = 0.94
+        keyCard.Parent = pageKey
+        Instance.new("UICorner", keyCard).CornerRadius = UDim.new(0, 12)
+        
+        local keyTitle = Instance.new("TextLabel")
+        keyTitle.Size = UDim2.new(1, -20, 0, 24)
+        keyTitle.Position = UDim2.new(0, 12, 0, 8)
+        keyTitle.BackgroundTransparency = 1
+        keyTitle.Text = "🔑 THÔNG TIN KEY SỬ DỤNG"
+        keyTitle.Font = Enum.Font.GothamBlack
+        keyTitle.TextSize = 13
+        keyTitle.TextColor3 = Color3.fromRGB(0, 210, 255)
+        keyTitle.TextXAlignment = Enum.TextXAlignment.Left
+        keyTitle.Parent = keyCard
+        
+        local keyValLabel = Instance.new("TextLabel")
+        keyValLabel.Size = UDim2.new(1, -20, 0, 20)
+        keyValLabel.Position = UDim2.new(0, 12, 0, 36)
+        keyValLabel.BackgroundTransparency = 1
+        keyValLabel.Text = "Mã Key: " .. (Engine.Modules.KeySystem.CurrentKey or "N/A")
+        keyValLabel.Font = Enum.Font.GothamBold
+        keyValLabel.TextSize = 11
+        keyValLabel.TextColor3 = Color3.fromRGB(220, 230, 245)
+        keyValLabel.TextXAlignment = Enum.TextXAlignment.Left
+        keyValLabel.Parent = keyCard
+        
+        local keyTimeLabel = Instance.new("TextLabel")
+        keyTimeLabel.Size = UDim2.new(1, -20, 0, 20)
+        keyTimeLabel.Position = UDim2.new(0, 12, 0, 60)
+        keyTimeLabel.BackgroundTransparency = 1
+        keyTimeLabel.Text = "Thời gian còn lại: Đang tính..."
+        keyTimeLabel.Font = Enum.Font.GothamBold
+        keyTimeLabel.TextSize = 11
+        keyTimeLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
+        keyTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+        keyTimeLabel.Parent = keyCard
+        
+        Engine.Services.RunService.RenderStepped:Connect(function()
+            if pageKey.Visible then
+                keyTimeLabel.Text = "Thời gian còn lại: " .. Engine.Modules.KeySystem:GetRemainingTime()
+            end
+        end)
+        
+        -- Nút Logout / Đăng xuất Key
+        local btnLogout = Instance.new("TextButton")
+        btnLogout.Size = UDim2.new(1, -24, 0, 36)
+        btnLogout.Position = UDim2.new(0, 12, 0, 92)
+        btnLogout.BackgroundColor3 = Color3.fromRGB(220, 50, 60)
+        btnLogout.Text = "🔓 ĐĂNG XUẤT KEY"
+        btnLogout.Font = Enum.Font.GothamBlack
+        btnLogout.TextSize = 11
+        btnLogout.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btnLogout.Parent = keyCard
+        Instance.new("UICorner", btnLogout).CornerRadius = UDim.new(0, 8)
+        
+        btnLogout.MouseButton1Click:Connect(function()
+            Engine.Modules.KeySystem:Logout()
+        end)
         
         for _, p in pairs(pages) do p.CanvasSize = UDim2.new(0, 0, 0, #p:GetChildren() * 52) end
     end,
@@ -1273,26 +1653,35 @@ Engine.Modules.UIController = {
 }
 
 -- ==========================================
--- [12] BOOTSTRAPPER (WITH 5S LOADING)
+-- [12] BOOTSTRAPPER (WITH LOADING & KEY CHECK)
 -- ==========================================
-Engine.Boot = function(self)
-    self.Modules.ConfigManager:Load()
-    self.Modules.PerformanceBooster:Init()
-    
-    -- Chạy Loading Screen 5s trước khi mở UI
-    self.Modules.LoadingScreen:Show()
-    
+Engine.BootAfterKey = function(self)
     self.Modules.NotificationManager:Init()
     self.Modules.HunterHUD:Init()
     self.Modules.UIController:Init()
     self.Modules.TeamForce:Init()
     self.Status = "Running"
     
-    self.Modules.NotificationManager:Notify("RB ZOO HUNTER V6.5", "Khởi động thành công! Bản quyền: Trần Lê Gia Bảo", 5)
+    self.Modules.NotificationManager:Notify("RB ZOO HUNTER V6.5", "Khởi động thành công! Bản quyền: " .. Engine.Author, 5)
     
     if self.Modules.ConfigManager.Settings.AutoFarm then
         self.Modules.FarmManager:Start()
     end
+end
+
+Engine.Boot = function(self)
+    self.Modules.ConfigManager:Load()
+    self.Modules.PerformanceBooster:Init()
+    
+    -- [1] Chạy Loading Screen 5s
+    self.Modules.LoadingScreen:Show()
+    
+    -- [2] Kiểm tra Key / Yêu cầu nhập Key
+    local keyVerified = self.Modules.KeySystem:PromptKeyUI()
+    if not keyVerified then return end
+    
+    -- [3] Khởi động giao diện Script chính khi đã có Key
+    self:BootAfterKey()
 end
 
 -- Launch Engine
