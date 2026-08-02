@@ -1,5 +1,5 @@
 -- // =================================================================
--- // RB ZOO SUPER PREMIUM 2026 - ULTIMATE V6.5 (INSTANT KEY BYPASS)
+-- // RB ZOO SUPER PREMIUM 2026 - ULTIMATE V8.0 (INSTANT KEY BYPASS)
 -- // COPYRIGHT © 2026 TRẦN LÊ GIA BẢO. ALL RIGHTS RESERVED.
 -- // Engineered with Real-Time Hunter AI, Quad-Cache & Anti-Lag Engine.
 -- // Integrated with GitHub Commit SHA Live Fetching (0s Cache Delay).
@@ -14,7 +14,7 @@ local Engine = {
     Author = "Trần Lê Gia Bảo"
 }
 
--- Hàm chuẩn hóa chuỗi tuyệt đối (Xóa khoảng trắng, xuống dòng \r \n và viết hoa)
+-- Hàm chuẩn hóa chuỗi
 local function CleanStr(str)
     if not str or typeof(str) ~= "string" then return "" end
     str = str:gsub("%s+", ""):gsub("[%r%n]", "")
@@ -50,7 +50,7 @@ Engine.Modules.ConfigManager = {
         AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 75, SmartMovement = true, AntiStuck = true,
         ForceZookeeper = true, SmartWallBypass = true
     },
-    File = "RBZoo_Smart_Config_V6_5.json",
+    File = "RBZoo_Smart_Config_V8_0.json",
     
     Load = function(self)
         if isfile and readfile and isfile(self.File) then
@@ -99,7 +99,7 @@ Engine.Modules.LoadingScreen = {
     Show = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
-        sg.Name = "RBZoo_V6_LoadingScreen"
+        sg.Name = "RBZoo_V8_LoadingScreen"
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
 
@@ -126,7 +126,7 @@ Engine.Modules.LoadingScreen = {
         title.Size = UDim2.new(1, 0, 0, 40)
         title.Position = UDim2.new(0, 0, 0, 18)
         title.BackgroundTransparency = 1
-        title.Text = "⚡ RB ZOO ULTIMATE V6.5"
+        title.Text = "⚡ RB ZOO ULTIMATE V8.0"
         title.Font = Enum.Font.GothamBlack
         title.TextSize = 18
         title.TextColor3 = Color3.fromRGB(0, 255, 180)
@@ -214,19 +214,18 @@ Engine.Modules.LoadingScreen = {
 }
 
 -- ==========================================
--- [4.5] KEY SYSTEM & INSTANT LIVE FETCH MODULE
+-- [4.5] KEY SYSTEM & INSTANT LIVE FETCH MODULE (FIXED FLEXIBLE FORMAT)
 -- ==========================================
 Engine.Modules.KeySystem = {
     KeyURL = "https://getkeytlgb.netlify.app/",
     RepoOwner = "giabaotranle04112011",
     RepoName = "getkey",
     FilePath = "keys.json",
-    KeySaveFile = "RBZoo_SavedKey_V6.json",
+    KeySaveFile = "RBZoo_SavedKey_V8.json",
     AdminKey = "14142022",
     CurrentKey = nil,
     CurrentKeyType = nil,
 
-    -- Hàm tải nội dung không qua Cache Fastly của GitHub
     FetchLatestKeysJSON = function(self)
         local httpRequest = (syn and syn.request) or (http and http.request) or request or http_request
         
@@ -249,7 +248,7 @@ Engine.Modules.KeySystem = {
             return nil
         end
 
-        -- Phương pháp 1: Lấy Commit SHA mới nhất từ GitHub API (Không bị cache)
+        -- Lấy Commit SHA mới nhất để tránh Cache Fastly của GitHub
         local commitApiUrl = string.format("https://api.github.com/repos/%s/%s/commits/main", self.RepoOwner, self.RepoName)
         local apiResponse = httpGetRaw(commitApiUrl)
         
@@ -264,11 +263,11 @@ Engine.Modules.KeySystem = {
             end
         end
 
-        -- Phương pháp 2: Link Raw + Query nocache làm dự phòng
         local directUrl = string.format("https://raw.githubusercontent.com/%s/%s/main/%s?nocache=%d", self.RepoOwner, self.RepoName, self.FilePath, os.time())
         return httpGetRaw(directUrl)
     end,
 
+    -- SỬA LỖI: Hỗ trợ mọi tiền tố Key (FREE-, TLGB-, VIP7-, VIP30-...)
     ValidateKeyFormat = function(self, inputKey)
         local cleaned = CleanStr(inputKey)
         if cleaned == "" then return false, "EMPTY", "" end
@@ -277,8 +276,9 @@ Engine.Modules.KeySystem = {
             return true, "ADMIN", cleaned
         end
 
-        local b1, b2 = cleaned:match("^TLGB%-([A-Z0-9]+)%-([A-Z0-9]+)$")
-        if b1 and b2 and #b1 == 4 and #b2 == 4 then
+        -- Định dạng linh hoạt: [TIỀN TỐ]-[4 KÝ TỰ]-[4 KÝ TỰ]
+        local prefix, b1, b2 = cleaned:match("^([A-Z0-9]+)%-([A-Z0-9]+)%-([A-Z0-9]+)$")
+        if prefix and b1 and b2 and #b1 == 4 and #b2 == 4 then
             return true, "USER", cleaned
         end
 
@@ -295,7 +295,6 @@ Engine.Modules.KeySystem = {
             return true, "ADMIN"
         end
 
-        -- Tải dữ liệu JSON mới nhất trực tiếp từ Server GitHub
         local response = self:FetchLatestKeysJSON()
 
         if not response then
@@ -312,15 +311,14 @@ Engine.Modules.KeySystem = {
 
         local currentTime = os.time()
 
-        -- Duyệt qua Object keys.json dạng { "TLGB-XXXX-XXXX": expireTimestamp }
+        -- Kiểm tra mã Key nằm trong JSON
         for keyName, expireTimestamp in pairs(validKeys) do
             local keyToCheck = (typeof(expireTimestamp) == "string") and expireTimestamp or keyName
 
             if CleanStr(keyToCheck) == cleanedInput then
-                -- Nếu lưu dưới dạng Unix Timestamp (Hạn 24h)
                 if typeof(expireTimestamp) == "number" then
                     if currentTime > expireTimestamp then
-                        return false, "Key này đã hết hạn sử dụng (sau 24h)!"
+                        return false, "Key này đã hết hạn sử dụng (24h)!"
                     end
                 end
                 return true, "USER"
@@ -335,14 +333,12 @@ Engine.Modules.KeySystem = {
             local success, result = pcall(function()
                 return Engine.Services.HttpService:JSONDecode(readfile(self.KeySaveFile))
             end)
-            if success and result and result.Key and result.Timestamp then
+            if success and result and result.Key then
                 local isValidOnline, keyType = self:VerifyKeyOnline(result.Key)
                 if isValidOnline then
-                    if keyType == "ADMIN" or (os.time() - result.Timestamp < 86400) then
-                        self.CurrentKey = CleanStr(result.Key)
-                        self.CurrentKeyType = keyType
-                        return true, result.Key, keyType
-                    end
+                    self.CurrentKey = CleanStr(result.Key)
+                    self.CurrentKeyType = keyType
+                    return true, result.Key, keyType
                 end
             end
         end
@@ -401,7 +397,7 @@ Engine.Modules.KeySystem = {
         Engine.Modules.FarmManager:Stop()
         
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
-        for _, guiName in ipairs({"RBZoo_V6_UI_LiquidGlass", "RBZoo_Hunter_HUD_V6", "RBZoo_V6_Notifications"}) do
+        for _, guiName in ipairs({"RBZoo_V8_UI_LiquidGlass", "RBZoo_Hunter_HUD_V8", "RBZoo_V8_Notifications"}) do
             local g = coreGui:FindFirstChild(guiName)
             if g then g:Destroy() end
         end
@@ -462,7 +458,7 @@ Engine.Modules.KeySystem = {
         desc.Size = UDim2.new(1, -40, 0, 30)
         desc.Position = UDim2.new(0, 20, 0, 48)
         desc.BackgroundTransparency = 1
-        desc.Text = "Vui lòng lấy Key tại trang web hoặc nhập Mã Admin để tiếp tục sử dụng Script."
+        desc.Text = "Vui lòng lấy Key tại trang web hoặc Bot Discord để tiếp tục sử dụng Script."
         desc.Font = Enum.Font.GothamMedium
         desc.TextSize = 11
         desc.TextColor3 = Color3.fromRGB(180, 195, 215)
@@ -486,7 +482,7 @@ Engine.Modules.KeySystem = {
         keyBox.Size = UDim2.new(1, -20, 1, 0)
         keyBox.Position = UDim2.new(0, 10, 0, 0)
         keyBox.BackgroundTransparency = 1
-        keyBox.PlaceholderText = "Nhập Key (TLGB-XXXX-XXXX) hoặc Mã Admin..."
+        keyBox.PlaceholderText = "Nhập Key (FREE-XXXX-XXXX) hoặc Mã Admin..."
         keyBox.PlaceholderColor3 = Color3.fromRGB(110, 125, 145)
         keyBox.Text = ""
         keyBox.Font = Enum.Font.GothamBold
@@ -625,14 +621,14 @@ Engine.Modules.TeamForce = {
 }
 
 -- ==========================================
--- [6] NOTIFICATION MANAGER (LIQUID GLASS)
+-- [6] NOTIFICATION MANAGER
 -- ==========================================
 Engine.Modules.NotificationManager = {
     Container = nil,
     Init = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
-        sg.Name = "RBZoo_V6_Notifications"
+        sg.Name = "RBZoo_V8_Notifications"
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         
@@ -720,7 +716,7 @@ Engine.Modules.HunterHUD = {
     Init = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
-        sg.Name = "RBZoo_Hunter_HUD_V6"
+        sg.Name = "RBZoo_Hunter_HUD_V8"
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         self.Gui = sg
@@ -744,7 +740,7 @@ Engine.Modules.HunterHUD = {
         local title = Instance.new("TextLabel")
         title.Size = UDim2.new(1, 0, 0, 26)
         title.BackgroundTransparency = 1
-        title.Text = "⚡ ZOOKEEPER HUNTER V6.5"
+        title.Text = "⚡ ZOOKEEPER HUNTER V8.0"
         title.Font = Enum.Font.GothamBlack
         title.TextSize = 11
         title.TextColor3 = Color3.fromRGB(0, 255, 170)
@@ -815,7 +811,7 @@ Engine.Modules.HunterHUD = {
 }
 
 -- ==========================================
--- [8] FAST & OPTIMIZED CACHE SCANNER
+-- [8] FAST SCANNER & TARGETING
 -- ==========================================
 local function PressKey(keyCode)
     pcall(function()
@@ -1151,7 +1147,7 @@ Engine.Modules.FarmManager = {
         end)
         table.insert(Engine.State.FarmConnections, farmLoop)
         
-        Engine.Modules.NotificationManager:Notify("Zookeeper Hunter V6.5", "AI Auto Farm & Smart Wall Bypass Active!", 3)
+        Engine.Modules.NotificationManager:Notify("Zookeeper Hunter V8.0", "AI Auto Farm & Smart Wall Bypass Active!", 3)
     end,
     
     Stop = function(self)
@@ -1290,7 +1286,7 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ==========================================
--- [11] UI CONTROLLER (LIQUID GLASS EDITION)
+-- [11] UI CONTROLLER
 -- ==========================================
 Engine.Modules.UIController = {
     ChromaObjects = {},
@@ -1301,7 +1297,7 @@ Engine.Modules.UIController = {
     Init = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
-        sg.Name = "RBZoo_V6_UI_LiquidGlass"
+        sg.Name = "RBZoo_V8_UI_LiquidGlass"
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         
@@ -1310,7 +1306,7 @@ Engine.Modules.UIController = {
         self.LogoButton.Position = UDim2.new(0, 20, 0.5, -27)
         self.LogoButton.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
         self.LogoButton.BackgroundTransparency = 0.25
-        self.LogoButton.Text = "ZOO\nV6.5"
+        self.LogoButton.Text = "ZOO\nV8.0"
         self.LogoButton.Font = Enum.Font.GothamBlack
         self.LogoButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         self.LogoButton.TextSize = 12
@@ -1356,7 +1352,7 @@ Engine.Modules.UIController = {
         title.Size = UDim2.new(1, -20, 0, 26)
         title.Position = UDim2.new(0, 15, 0, 4)
         title.BackgroundTransparency = 1
-        title.Text = "RB ZOO V6.5 • FIX LAG & WALL BYPASS EDITION"
+        title.Text = "RB ZOO V8.0 • FIX LAG & WALL BYPASS EDITION"
         title.Font = Enum.Font.GothamBlack
         title.TextSize = 13
         title.TextXAlignment = Enum.TextXAlignment.Left
@@ -1402,7 +1398,6 @@ Engine.Modules.UIController = {
             end
         end)
         
-        -- LẮNG NGHE PHÍM TẮT HOTKEY (XỬ LÝ LỖI PHÍM P)
         Engine.Services.UIS.InputBegan:Connect(function(input)
             if Engine.Services.UIS:GetFocusedTextBox() then return end
             if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -1501,7 +1496,6 @@ Engine.Modules.UIController = {
         local pageMovement = createTab("🚀 Movement", false)
         local pageKey = createTab("🔑 Key System", false)
         
-        -- Tab Team Force
         self:CreateToggle(pageForce, "Ép phe Zookeeper 100%", "ForceZookeeper", function(v)
             if v then Engine.Modules.TeamForce:TryForceZoo() end
         end)
@@ -1510,7 +1504,6 @@ Engine.Modules.UIController = {
             if v then Engine.Modules.PerformanceBooster:Init() end
         end)
         
-        -- Tab Combat AI
         self:CreateToggle(pageCombat, "Smart Aimbot [M]", "Aimbot")
         self:CreateSlider(pageCombat, "Aimbot FOV", 50, 600, "AimbotFOV")
         self:CreateSlider(pageCombat, "Aimbot Smooth", 0.05, 1, "AimbotSmooth")
@@ -1518,7 +1511,6 @@ Engine.Modules.UIController = {
         self:CreateToggle(pageCombat, "Auto Skill (Q / E)", "AutoSkill")
         self:CreateSlider(pageCombat, "Expand Hitbox", 2, 25, "HitboxSize")
         
-        -- Tab Automation
         self:CreateToggle(pageFarm, "Hunter AI Auto Farm [P]", "AutoFarm", function(v)
             if v then Engine.Modules.FarmManager:Start() else Engine.Modules.FarmManager:Stop() end
         end)
@@ -1529,7 +1521,6 @@ Engine.Modules.UIController = {
         self:CreateToggle(pageFarm, "Auto Money", "AutoMoney")
         self:CreateToggle(pageFarm, "Anti-AFK (24/7)", "AntiAFK")
         
-        -- Tab Movement
         self:CreateToggle(pageMovement, "Fly", "Fly")
         self:CreateSlider(pageMovement, "Fly Speed", 50, 350, "FlySpeed")
         self:CreateToggle(pageMovement, "WalkSpeed", "Speed")
@@ -1537,7 +1528,6 @@ Engine.Modules.UIController = {
         self:CreateToggle(pageMovement, "Noclip", "Noclip")
         self:CreateToggle(pageMovement, "Infinite Jump", "InfJump")
         
-        -- Tab Key System
         local keyCard = Instance.new("Frame")
         keyCard.Size = UDim2.new(1, -10, 0, 140)
         keyCard.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1734,7 +1724,7 @@ Engine.Modules.UIController = {
 }
 
 -- ==========================================
--- [12] BOOTSTRAPPER (WITH LOADING & KEY CHECK)
+-- [12] BOOTSTRAPPER
 -- ==========================================
 Engine.BootAfterKey = function(self)
     self.Modules.NotificationManager:Init()
@@ -1743,7 +1733,7 @@ Engine.BootAfterKey = function(self)
     self.Modules.TeamForce:Init()
     self.Status = "Running"
     
-    self.Modules.NotificationManager:Notify("RB ZOO HUNTER V6.5", "Khởi động thành công! Bản quyền: " .. Engine.Author, 5)
+    self.Modules.NotificationManager:Notify("RB ZOO HUNTER V8.0", "Khởi động thành công! Bản quyền: " .. Engine.Author, 5)
     
     if self.Modules.ConfigManager.Settings.AutoFarm then
         self.Modules.FarmManager:Start()
@@ -1754,16 +1744,13 @@ Engine.Boot = function(self)
     self.Modules.ConfigManager:Load()
     self.Modules.PerformanceBooster:Init()
     
-    -- [1] Chạy Loading Screen 5s
     self.Modules.LoadingScreen:Show()
     
-    -- [2] Kiểm tra Key / Yêu cầu nhập Key
     local keyVerified = self.Modules.KeySystem:PromptKeyUI()
     if not keyVerified then return end
     
-    -- [3] Khởi động giao diện Script chính khi đã có Key
     self:BootAfterKey()
 end
 
--- Launch Engine
+-- Khởi chạy Engine
 Engine:Boot()
