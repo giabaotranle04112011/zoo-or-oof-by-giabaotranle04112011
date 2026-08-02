@@ -217,7 +217,7 @@ Engine.Modules.LoadingScreen = {
 -- [4.5] KEY SYSTEM & INSTANT LIVE FETCH MODULE
 -- ==========================================
 Engine.Modules.KeySystem = {
-    KeyURL = "https://tlgbgetkey.netlify.app/",
+    KeyURL = "https://getkeytlgb.netlify.app/",
     RepoOwner = "giabaotranle04112011",
     RepoName = "getkey",
     FilePath = "keys.json",
@@ -310,8 +310,19 @@ Engine.Modules.KeySystem = {
             return false, "Dữ liệu Server Key bị lỗi!"
         end
 
-        for _, validKey in ipairs(validKeys) do
-            if CleanStr(validKey) == cleanedInput then
+        local currentTime = os.time()
+
+        -- Duyệt qua Object keys.json dạng { "TLGB-XXXX-XXXX": expireTimestamp }
+        for keyName, expireTimestamp in pairs(validKeys) do
+            local keyToCheck = (typeof(expireTimestamp) == "string") and expireTimestamp or keyName
+
+            if CleanStr(keyToCheck) == cleanedInput then
+                -- Nếu lưu dưới dạng Unix Timestamp (Hạn 24h)
+                if typeof(expireTimestamp) == "number" then
+                    if currentTime > expireTimestamp then
+                        return false, "Key này đã hết hạn sử dụng (sau 24h)!"
+                    end
+                end
                 return true, "USER"
             end
         end
