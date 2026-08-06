@@ -1984,6 +1984,62 @@ Engine.Modules.FarmManager = {
             end
         end)
         table.insert(Engine.State.FarmConnections, actionThread)
+
+        -- =============================================
+        -- FARM AUTO SHOOT: Tự động bắn/nhấp chuột trái
+        -- CHỈ KHI LÀ ZOOKEEPER VÀ CÓ MỤC TIÊU HỢP LỆ
+        -- =============================================
+        local shootThread = task.spawn(function()
+            while Engine.Modules.ConfigManager.Settings.AutoFarm do
+                task.wait(0.02) -- 50 lần bắn / giây
+                pcall(function()
+                    local myRole = DeterminePlayerRole(LocalPlayer)
+                    if myRole ~= "ZOOKEEPER" then return end
+                    if not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget) then return end
+
+                    local char = LocalPlayer.Character
+                    if not char then return end
+
+                    -- Tự động trang bị vũ khí nếu tay chưa cầm gì
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if not tool then
+                        local bp = LocalPlayer:FindFirstChild("Backpack")
+                        if bp then
+                            local gt = bp:FindFirstChildOfClass("Tool")
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if gt and hum then
+                                hum:EquipTool(gt)
+                                tool = gt
+                            end
+                        end
+                    end
+
+                    if not tool then return end
+
+                    -- 1. Kích hoạt Tool (Activate = nhả đạn)
+                    tool:Activate()
+
+                    -- 2. Bắn qua RemoteEvent bên trong Tool (nếu game hỗ trợ)
+                    for _, v in ipairs(tool:GetDescendants()) do
+                        if v:IsA("RemoteEvent") then
+                            local n = v.Name:lower()
+                            if n:find("fire") or n:find("shoot") or n:find("attack") or n:find("use") or n:find("action") then
+                                if Engine.State.CurrentTarget then
+                                    pcall(function() v:FireServer(Engine.State.CurrentTarget.Position) end)
+                                    pcall(function() v:FireServer(Engine.State.CurrentTarget) end)
+                                else
+                                    pcall(function() v:FireServer() end)
+                                end
+                            end
+                        end
+                    end
+
+                    -- 3. Mô phỏng nhấp chuột trái thật (siêu nhanh)
+                    TriggerMouseClick()
+                end)
+            end
+        end)
+        table.insert(Engine.State.FarmConnections, shootThread)
         
         local farmLoop = Engine.Services.RunService.Heartbeat:Connect(function(dt)
             if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
