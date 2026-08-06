@@ -81,11 +81,13 @@ end
 
 -- Helper Mô Phỏng Nhấp Chuột Trái (TriggerMouseClick)
 local function TriggerMouseClick()
-    pcall(function()
-        local vp = Camera.ViewportSize
-        Engine.Services.VirtualInputManager:SendMouseButtonEvent(vp.X / 2, vp.Y / 2, 0, true, game, 1)
-        task.wait(0.01)
-        Engine.Services.VirtualInputManager:SendMouseButtonEvent(vp.X / 2, vp.Y / 2, 0, false, game, 1)
+    task.spawn(function()
+        pcall(function()
+            local vp = Camera.ViewportSize
+            Engine.Services.VirtualInputManager:SendMouseButtonEvent(vp.X / 2, vp.Y / 2, 0, true, game, 1)
+            task.wait(0.01)
+            Engine.Services.VirtualInputManager:SendMouseButtonEvent(vp.X / 2, vp.Y / 2, 0, false, game, 1)
+        end)
     end)
 end
 
@@ -1786,14 +1788,17 @@ Engine.Modules.HunterHUD = {
 -- [11] STANDALONE AUTO ATTACK ENGINE (CHỈ XẢ ĐẠN/CLICK KHI LÀ ZOOKEEPER HOẶC CÓ SÚNG)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.02) do
         pcall(function()
-            if Engine.Modules.ConfigManager.Settings.AutoAttack then
+            local autoAttackEnabled = Engine.Modules.ConfigManager.Settings.AutoAttack
+            local autoFarmEnabled = Engine.Modules.ConfigManager.Settings.AutoFarm
+            
+            if autoAttackEnabled or autoFarmEnabled then
                 local role = DeterminePlayerRole(LocalPlayer)
                 -- Auto Attack (Xả đạn súng/chuột trái) chỉ chạy khi là Zookeeper
                 if role == "ZOOKEEPER" then
                     -- Nếu đang bật AutoFarm, chỉ click/bắn khi có mục tiêu thực sự hợp lệ
-                    if Engine.Modules.ConfigManager.Settings.AutoFarm and (not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget)) then
+                    if autoFarmEnabled and (not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget)) then
                         return
                     end
 
