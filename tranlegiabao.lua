@@ -1083,25 +1083,28 @@ end
 
 -- BẬT SCANNER TỰ ĐỘNG CHẠY LIÊN TỤC ĐỂ ESP HOẠT ĐỘNG NGAY LẬP TỨC
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.2) do
         pcall(FastScanPlayers)
     end
 end)
 
 local function SlowScanPrompts()
     table.clear(Engine.Cache.Prompts)
-    for _, prompt in ipairs(Engine.Services.Workspace:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-            local pPart = prompt.Parent
-            if pPart and pPart:IsA("BasePart") then
-                table.insert(Engine.Cache.Prompts, {Prompt = prompt, Part = pPart, Distance = prompt.MaxActivationDistance})
+    pcall(function()
+        local searchRoot = Engine.Services.Workspace:FindFirstChild("Gameplay") or Engine.Services.Workspace
+        for _, prompt in ipairs(searchRoot:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                local pPart = prompt.Parent
+                if pPart and pPart:IsA("BasePart") then
+                    table.insert(Engine.Cache.Prompts, {Prompt = prompt, Part = pPart, Distance = prompt.MaxActivationDistance})
+                end
             end
         end
-    end
+    end)
 end
 
 task.spawn(function()
-    while task.wait(3) do
+    while task.wait(4) do
         SlowScanPrompts()
     end
 end)
@@ -1420,7 +1423,7 @@ Engine.Modules.ESPEngine = {
 Engine.Modules.MiniRadar = {
     Gui = nil,
     Card = nil,
-    Dots = {},
+    DotPool = {},
     Init = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
@@ -1522,7 +1525,7 @@ Engine.Modules.MiniRadar = {
             while card and card.Parent do
                 deg = (deg + 3) % 360
                 sweepPivot.Rotation = deg
-                task.wait(0.02)
+                task.wait(0.03)
             end
         end)
 
@@ -1585,6 +1588,27 @@ Engine.Modules.MiniRadar = {
         
         self.Card = card
 
+        -- Object Pool cho chấm Rada để chống lag giật hoàn toàn
+        local function getOrCreateDot(index)
+            if self.DotPool[index] then
+                return self.DotPool[index]
+            end
+            local dot = Instance.new("Frame")
+            dot.Size = UDim2.new(0, 7, 0, 7)
+            dot.ZIndex = 5
+            dot.Parent = card
+            Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+
+            local dotStroke = Instance.new("UIStroke")
+            dotStroke.Thickness = 1
+            dotStroke.Color = Color3.fromRGB(255, 255, 255)
+            dotStroke.Transparency = 0.3
+            dotStroke.Parent = dot
+
+            self.DotPool[index] = dot
+            return dot
+        end
+
         Engine.Services.RunService.RenderStepped:Connect(function()
             if not Engine.Modules.ConfigManager.Settings.ShowRadar then
                 card.Visible = false
@@ -1592,8 +1616,10 @@ Engine.Modules.MiniRadar = {
             end
             card.Visible = true
 
-            for _, dot in pairs(self.Dots) do dot:Destroy() end
-            table.clear(self.Dots)
+            -- Reset trạng thái hiển thị của Pool chấm cũ
+            for _, dot in ipairs(self.DotPool) do
+                dot.Visible = false
+            end
 
             local myChar = LocalPlayer.Character
             local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
@@ -1601,6 +1627,7 @@ Engine.Modules.MiniRadar = {
 
             local camCFrame = Camera.CFrame
             local targetCount = 0
+            local dotIdx = 0
 
             -- Quét thời gian thực tất cả Người chơi theo góc quay Camera (Object Space Rotation)
             for _, plr in ipairs(Engine.Services.Players:GetPlayers()) do
@@ -1609,28 +1636,17 @@ Engine.Modules.MiniRadar = {
                     local hum = plr.Character:FindFirstChildOfClass("Humanoid")
                     if hrp and hum and hum.Health > 0 then
                         targetCount = targetCount + 1
+                        dotIdx = dotIdx + 1
                         local role = DeterminePlayerRole(plr)
                         local relVector = camCFrame:VectorToObjectSpace(hrp.Position - myHrp.Position)
                         
-                        -- relVector.X (phải/trái), relVector.Z (trước/sau)
                         local rx = math.clamp(relVector.X / 3.5, -62, 62)
                         local rz = math.clamp(relVector.Z / 3.5, -62, 62)
 
-                        local dot = Instance.new("Frame")
-                        dot.Size = UDim2.new(0, 7, 0, 7)
+                        local dot = getOrCreateDot(dotIdx)
                         dot.Position = UDim2.new(0.5, rx - 3.5, 0.5, rz - 3.5)
                         dot.BackgroundColor3 = Engine.Modules.ESPEngine:GetRoleColor(role)
-                        dot.ZIndex = 5
-                        dot.Parent = card
-                        Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-
-                        local dotStroke = Instance.new("UIStroke")
-                        dotStroke.Thickness = 1
-                        dotStroke.Color = Color3.fromRGB(255, 255, 255)
-                        dotStroke.Transparency = 0.3
-                        dotStroke.Parent = dot
-
-                        table.insert(self.Dots, dot)
+                        dot.Visible = true
                     end
                 end
             end
@@ -1643,18 +1659,15 @@ Engine.Modules.MiniRadar = {
                     local hum = animal:FindFirstChildOfClass("Humanoid")
                     if hrp and hum and hum.Health > 0 then
                         targetCount = targetCount + 1
+                        dotIdx = dotIdx + 1
                         local relVector = camCFrame:VectorToObjectSpace(hrp.Position - myHrp.Position)
                         local rx = math.clamp(relVector.X / 3.5, -62, 62)
                         local rz = math.clamp(relVector.Z / 3.5, -62, 62)
 
-                        local dot = Instance.new("Frame")
-                        dot.Size = UDim2.new(0, 7, 0, 7)
+                        local dot = getOrCreateDot(dotIdx)
                         dot.Position = UDim2.new(0.5, rx - 3.5, 0.5, rz - 3.5)
-                        dot.BackgroundColor3 = Color3.fromRGB(0, 170, 255) -- Blue OOF
-                        dot.ZIndex = 5
-                        dot.Parent = card
-                        Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-                        table.insert(self.Dots, dot)
+                        dot.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+                        dot.Visible = true
                     end
                 end
             end
