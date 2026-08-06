@@ -2000,20 +2000,7 @@ Engine.Modules.FarmManager = {
                     local char = LocalPlayer.Character
                     if not char then return end
 
-                    -- Tự động trang bị vũ khí nếu tay chưa cầm gì
                     local tool = char:FindFirstChildOfClass("Tool")
-                    if not tool then
-                        local bp = LocalPlayer:FindFirstChild("Backpack")
-                        if bp then
-                            local gt = bp:FindFirstChildOfClass("Tool")
-                            local hum = char:FindFirstChildOfClass("Humanoid")
-                            if gt and hum then
-                                hum:EquipTool(gt)
-                                tool = gt
-                            end
-                        end
-                    end
-
                     if not tool then return end
 
                     -- 1. Kích hoạt Tool (Activate = nhả đạn)
@@ -2543,6 +2530,7 @@ Engine.Modules.UIController = {
         local pageFarm = createTab(dict.FARM_TAB, false)
         local pageMovement = createTab(dict.MOVEMENT_TAB, false)
         local pageKey = createTab(dict.KEY_TAB, false)
+        local pageAdmin = createTab("⚙️ Admin", false)
 
         -- ESP Visuals Tab
         self:CreateToggle(pageESP, dict.MASTER_ESP, "ESP", function(v)
@@ -2776,6 +2764,726 @@ Engine.Modules.UIController = {
             Engine.Modules.AudioFX:Click()
             Engine.Modules.KeySystem:Logout()
         end)
+
+        -- ==========================================
+        -- ⚙️ ADMIN TAB: LỆNH ADMIN + CLICK TEST
+        -- ==========================================
+        do
+            -- [A] NHẬP LỆNH ADMIN
+            local cmdCard = Instance.new("Frame")
+            cmdCard.Size = UDim2.new(1, -10, 0, 195)
+            cmdCard.BackgroundColor3 = Color3.fromRGB(10, 15, 28)
+            cmdCard.BackgroundTransparency = 0.2
+            cmdCard.ZIndex = 3
+            cmdCard.Parent = pageAdmin
+            Instance.new("UICorner", cmdCard).CornerRadius = UDim.new(0, 12)
+
+            local cmdStroke = Instance.new("UIStroke")
+            cmdStroke.Thickness = 1.5
+            cmdStroke.Color = Color3.fromRGB(255, 180, 0)
+            cmdStroke.Transparency = 0.4
+            cmdStroke.Parent = cmdCard
+
+            local cmdTitle = Instance.new("TextLabel")
+            cmdTitle.Size = UDim2.new(1, -20, 0, 24)
+            cmdTitle.Position = UDim2.new(0, 12, 0, 8)
+            cmdTitle.BackgroundTransparency = 1
+            cmdTitle.Text = "⌨️ NHẬP LỆNH ADMIN"
+            cmdTitle.Font = Enum.Font.GothamBlack
+            cmdTitle.TextSize = 13
+            cmdTitle.TextColor3 = Color3.fromRGB(255, 200, 0)
+            cmdTitle.TextXAlignment = Enum.TextXAlignment.Left
+            cmdTitle.ZIndex = 4
+            cmdTitle.Parent = cmdCard
+
+            -- Input Box
+            local inputBg = Instance.new("Frame")
+            inputBg.Size = UDim2.new(1, -20, 0, 36)
+            inputBg.Position = UDim2.new(0, 10, 0, 38)
+            inputBg.BackgroundColor3 = Color3.fromRGB(18, 24, 40)
+            inputBg.ZIndex = 4
+            inputBg.Parent = cmdCard
+            Instance.new("UICorner", inputBg).CornerRadius = UDim.new(0, 8)
+            local inputStroke = Instance.new("UIStroke")
+            inputStroke.Color = Color3.fromRGB(255, 200, 0)
+            inputStroke.Transparency = 0.6
+            inputStroke.Parent = inputBg
+
+            local cmdBox = Instance.new("TextBox")
+            cmdBox.Size = UDim2.new(1, -12, 1, 0)
+            cmdBox.Position = UDim2.new(0, 8, 0, 0)
+            cmdBox.BackgroundTransparency = 1
+            cmdBox.PlaceholderText = "Nhập lệnh... (vd: kill all, speed 100)"
+            cmdBox.PlaceholderColor3 = Color3.fromRGB(110, 120, 140)
+            cmdBox.Text = ""
+            cmdBox.Font = Enum.Font.GothamBold
+            cmdBox.TextSize = 11
+            cmdBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            cmdBox.TextXAlignment = Enum.TextXAlignment.Left
+            cmdBox.ClearTextOnFocus = false
+            cmdBox.ZIndex = 5
+            cmdBox.Parent = inputBg
+
+            -- Execute Button
+            local execBtn = Instance.new("TextButton")
+            execBtn.Size = UDim2.new(1, -20, 0, 34)
+            execBtn.Position = UDim2.new(0, 10, 0, 82)
+            execBtn.BackgroundColor3 = Color3.fromRGB(255, 160, 0)
+            execBtn.Text = "⚡ THỰC THI LỆNH"
+            execBtn.Font = Enum.Font.GothamBlack
+            execBtn.TextSize = 12
+            execBtn.TextColor3 = Color3.fromRGB(10, 10, 10)
+            execBtn.ZIndex = 4
+            execBtn.Parent = cmdCard
+            Instance.new("UICorner", execBtn).CornerRadius = UDim.new(0, 8)
+
+            -- Log output
+            local logLabel = Instance.new("TextLabel")
+            logLabel.Size = UDim2.new(1, -20, 0, 58)
+            logLabel.Position = UDim2.new(0, 10, 0, 124)
+            logLabel.BackgroundColor3 = Color3.fromRGB(8, 12, 22)
+            logLabel.BackgroundTransparency = 0.3
+            logLabel.Text = "📋 Log: Chờ lệnh..."
+            logLabel.Font = Enum.Font.GothamMedium
+            logLabel.TextSize = 10
+            logLabel.TextColor3 = Color3.fromRGB(180, 200, 230)
+            logLabel.TextXAlignment = Enum.TextXAlignment.Left
+            logLabel.TextYAlignment = Enum.TextYAlignment.Top
+            logLabel.TextWrapped = true
+            logLabel.ZIndex = 4
+            logLabel.Parent = cmdCard
+            Instance.new("UICorner", logLabel).CornerRadius = UDim.new(0, 6)
+
+            -- Danh sách lệnh hỗ trợ
+            local function executeAdminCmd(raw)
+                local cmd = raw:lower():gsub("^%s+", ""):gsub("%s+$", "")
+                local function log(msg) logLabel.Text = "📋 " .. msg end
+
+                if cmd == "" then log("Lệnh trống!") return end
+
+                -- kill all
+                if cmd == "kill all" or cmd == "killall" then
+                    for _, p in ipairs(Engine.Services.Players:GetPlayers()) do
+                        pcall(function()
+                            local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+                            if hum then hum.Health = 0 end
+                        end)
+                    end
+                    log("✅ kill all — đã kill tất cả player")
+
+                -- kill me
+                elseif cmd == "kill me" or cmd == "killme" then
+                    pcall(function()
+                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.Health = 0 end
+                    end)
+                    log("✅ kill me — đã kill bản thân")
+
+                -- speed [value]
+                elseif cmd:sub(1,5) == "speed" then
+                    local val = tonumber(cmd:match("speed%s+(%d+)"))
+                    if val then
+                        Engine.Modules.ConfigManager.Settings.SpeedValue = val
+                        Engine.Modules.ConfigManager.Settings.Speed = true
+                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.WalkSpeed = val end
+                        log("✅ speed " .. val .. " — đã đặt tốc độ")
+                    else
+                        log("❌ Cú pháp: speed [số] — vd: speed 100")
+                    end
+
+                -- fly on/off
+                elseif cmd == "fly" or cmd == "fly on" then
+                    Engine.Modules.ConfigManager.Settings.Fly = true
+                    log("✅ fly on — đã bật bay")
+                elseif cmd == "fly off" then
+                    Engine.Modules.ConfigManager.Settings.Fly = false
+                    log("✅ fly off — đã tắt bay")
+
+                -- farm on/off
+                elseif cmd == "farm" or cmd == "farm on" then
+                    Engine.Modules.ConfigManager.Settings.AutoFarm = true
+                    Engine.Modules.FarmManager:Start()
+                    log("✅ farm on — Auto Farm đã bật")
+                elseif cmd == "farm off" then
+                    Engine.Modules.ConfigManager.Settings.AutoFarm = false
+                    Engine.Modules.FarmManager:Stop()
+                    log("✅ farm off — Auto Farm đã tắt")
+
+                -- noclip on/off
+                elseif cmd == "noclip" or cmd == "noclip on" then
+                    Engine.Modules.ConfigManager.Settings.Noclip = true
+                    log("✅ noclip on")
+                elseif cmd == "noclip off" then
+                    Engine.Modules.ConfigManager.Settings.Noclip = false
+                    log("✅ noclip off")
+
+                -- inf jump
+                elseif cmd == "infjump" or cmd == "inf jump" then
+                    Engine.Modules.ConfigManager.Settings.InfJump = not Engine.Modules.ConfigManager.Settings.InfJump
+                    log("✅ InfJump: " .. (Engine.Modules.ConfigManager.Settings.InfJump and "ON" or "OFF"))
+
+                -- tp me [player]
+                elseif cmd:sub(1,2) == "tp" then
+                    local targetName = cmd:match("tp%s+(.+)")
+                    if targetName then
+                        local found = false
+                        for _, p in ipairs(Engine.Services.Players:GetPlayers()) do
+                            if p.Name:lower():find(targetName) and p.Character then
+                                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                                local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                if hrp and myHrp then
+                                    myHrp.CFrame = hrp.CFrame + Vector3.new(2, 0, 0)
+                                    log("✅ Đã TP đến: " .. p.Name)
+                                    found = true
+                                    break
+                                end
+                            end
+                        end
+                        if not found then log("❌ Không tìm thấy player: " .. targetName) end
+                    else
+                        log("❌ Cú pháp: tp [tên player]")
+                    end
+
+                -- bring [name] — kéo player đến chỗ mình
+                elseif cmd:sub(1,5) == "bring" then
+                    local targetName = cmd:match("bring%s+(.+)")
+                    if targetName then
+                        local found = false
+                        for _, p in ipairs(Engine.Services.Players:GetPlayers()) do
+                            if p.Name:lower():find(targetName) and p.Character then
+                                local theirHrp = p.Character:FindFirstChild("HumanoidRootPart")
+                                local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                                if theirHrp and myHrp then
+                                    theirHrp.CFrame = myHrp.CFrame + Vector3.new(3, 0, 0)
+                                    log("✅ Đã bring: " .. p.Name .. " đến chỗ bạn")
+                                    found = true
+                                    break
+                                end
+                            end
+                        end
+                        if not found then log("❌ Không tìm thấy: " .. targetName) end
+                    else
+                        log("❌ Cú pháp: bring [tên]")
+                    end
+
+                -- god / ungod — vô địch
+                elseif cmd == "god" then
+                    task.spawn(function()
+                        while Engine.Modules.ConfigManager.Settings._GodMode do
+                            pcall(function()
+                                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                                if hum then hum.Health = hum.MaxHealth end
+                            end)
+                            task.wait(0.1)
+                        end
+                    end)
+                    Engine.Modules.ConfigManager.Settings._GodMode = true
+                    task.spawn(function()
+                        while Engine.Modules.ConfigManager.Settings._GodMode do
+                            pcall(function()
+                                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                                if hum then hum.Health = hum.MaxHealth end
+                            end)
+                            task.wait(0.05)
+                        end
+                    end)
+                    log("✅ God Mode ON — HP luôn đầy")
+                elseif cmd == "ungod" then
+                    Engine.Modules.ConfigManager.Settings._GodMode = false
+                    log("✅ God Mode OFF")
+
+                -- invisible / visible
+                elseif cmd == "invisible" or cmd == "invis" then
+                    pcall(function()
+                        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                            if part:IsA("BasePart") or part:IsA("Decal") then
+                                part.Transparency = 1
+                            end
+                        end
+                    end)
+                    log("✅ Invisible ON — nhân vật ẩn")
+                elseif cmd == "visible" then
+                    pcall(function()
+                        for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.Transparency = 0
+                            elseif part:IsA("Decal") then
+                                part.Transparency = 0
+                            end
+                        end
+                    end)
+                    log("✅ Visible ON — nhân vật hiện lại")
+
+                -- size [số] — thay đổi kích thước nhân vật
+                elseif cmd:sub(1,4) == "size" then
+                    local val = tonumber(cmd:match("size%s+([%d%.]+)"))
+                    if val then
+                        pcall(function()
+                            local char = LocalPlayer.Character
+                            for _, part in ipairs(char:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.Size = part.Size * val
+                                end
+                            end
+                        end)
+                        log("✅ Size x" .. val .. " — đã thay đổi kích thước")
+                    else
+                        log("❌ Cú pháp: size [số] — vd: size 2")
+                    end
+
+                -- jump [số] — đặt lực nhảy
+                elseif cmd:sub(1,4) == "jump" then
+                    local val = tonumber(cmd:match("jump%s+(%d+)"))
+                    if val then
+                        pcall(function()
+                            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                            if hum then hum.JumpPower = val end
+                        end)
+                        log("✅ JumpPower = " .. val)
+                    else
+                        log("❌ Cú pháp: jump [số] — vd: jump 100")
+                    end
+
+                -- esp / esp off
+                elseif cmd == "esp" or cmd == "esp on" then
+                    Engine.Modules.ConfigManager.Settings.ESP = true
+                    log("✅ ESP ON")
+                elseif cmd == "esp off" then
+                    Engine.Modules.ConfigManager.Settings.ESP = false
+                    Engine.Modules.ESPEngine:Clear()
+                    log("✅ ESP OFF")
+
+                -- hitbox [số]
+                elseif cmd:sub(1,6) == "hitbox" then
+                    local val = tonumber(cmd:match("hitbox%s+([%d%.]+)"))
+                    if val then
+                        Engine.Modules.ConfigManager.Settings.HitboxSize = val
+                        log("✅ Hitbox size = " .. val)
+                    else
+                        log("❌ Cú pháp: hitbox [số] — vd: hitbox 10")
+                    end
+
+                -- fov [số]
+                elseif cmd:sub(1,3) == "fov" then
+                    local val = tonumber(cmd:match("fov%s+(%d+)"))
+                    if val then
+                        Engine.Modules.ConfigManager.Settings.AimbotFOV = val
+                        log("✅ Aimbot FOV = " .. val)
+                    else
+                        log("❌ Cú pháp: fov [số] — vd: fov 300")
+                    end
+
+                -- freeze / unfreeze — đóng băng bản thân
+                elseif cmd == "freeze" then
+                    pcall(function()
+                        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                        if hrp and hum then
+                            hum.PlatformStand = true
+                            hrp.Anchored = true
+                        end
+                    end)
+                    log("✅ Freeze ON — nhân vật đứng yên")
+                elseif cmd == "unfreeze" then
+                    pcall(function()
+                        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                        if hrp and hum then
+                            hum.PlatformStand = false
+                            hrp.Anchored = false
+                        end
+                    end)
+                    log("✅ Freeze OFF — nhân vật di chuyển lại")
+
+                -- respawn — tái sinh nhân vật
+                elseif cmd == "respawn" then
+                    pcall(function()
+                        LocalPlayer:LoadCharacter()
+                    end)
+                    log("✅ Đang respawn...")
+
+                -- help
+                elseif cmd == "help" then
+                    log("kill all/me | speed | fly | farm | noclip | infjump | tp | bring | god | invis | size | jump | esp | hitbox | fov | freeze | respawn")
+
+                else
+                    -- Thử chạy thẳng qua loadstring nếu có
+                    local ok, err = pcall(loadstring, raw)
+                    if ok then
+                        pcall(loadstring(raw))
+                        log("✅ Lua: " .. raw:sub(1, 45))
+                    else
+                        log("❌ Lệnh không nhận ra: " .. cmd)
+                    end
+                end
+            end
+
+            execBtn.MouseButton1Click:Connect(function()
+                Engine.Modules.AudioFX:Click()
+                executeAdminCmd(cmdBox.Text)
+            end)
+            cmdBox.FocusLost:Connect(function(enter)
+                if enter then executeAdminCmd(cmdBox.Text) end
+            end)
+
+            -- [B] CLICK SPEED TEST
+            local clickCard = Instance.new("Frame")
+            clickCard.Size = UDim2.new(1, -10, 0, 145)
+            clickCard.BackgroundColor3 = Color3.fromRGB(10, 15, 28)
+            clickCard.BackgroundTransparency = 0.2
+            clickCard.ZIndex = 3
+            clickCard.Parent = pageAdmin
+            Instance.new("UICorner", clickCard).CornerRadius = UDim.new(0, 12)
+
+            local clickStroke = Instance.new("UIStroke")
+            clickStroke.Thickness = 1.5
+            clickStroke.Color = Color3.fromRGB(0, 255, 170)
+            clickStroke.Transparency = 0.4
+            clickStroke.Parent = clickCard
+
+            local clickTitle = Instance.new("TextLabel")
+            clickTitle.Size = UDim2.new(1, -20, 0, 24)
+            clickTitle.Position = UDim2.new(0, 12, 0, 8)
+            clickTitle.BackgroundTransparency = 1
+            clickTitle.Text = "🖱️ CLICK SPEED TEST"
+            clickTitle.Font = Enum.Font.GothamBlack
+            clickTitle.TextSize = 13
+            clickTitle.TextColor3 = Color3.fromRGB(0, 255, 170)
+            clickTitle.TextXAlignment = Enum.TextXAlignment.Left
+            clickTitle.ZIndex = 4
+            clickTitle.Parent = clickCard
+
+            local clickResultLabel = Instance.new("TextLabel")
+            clickResultLabel.Size = UDim2.new(1, -20, 0, 24)
+            clickResultLabel.Position = UDim2.new(0, 12, 0, 36)
+            clickResultLabel.BackgroundTransparency = 1
+            clickResultLabel.Text = "Nhấn START để đo tốc độ click (5 giây)"
+            clickResultLabel.Font = Enum.Font.GothamBold
+            clickResultLabel.TextSize = 11
+            clickResultLabel.TextColor3 = Color3.fromRGB(200, 215, 235)
+            clickResultLabel.TextXAlignment = Enum.TextXAlignment.Left
+            clickResultLabel.ZIndex = 4
+            clickResultLabel.Parent = clickCard
+
+            local clickCountLabel = Instance.new("TextLabel")
+            clickCountLabel.Size = UDim2.new(1, -20, 0, 28)
+            clickCountLabel.Position = UDim2.new(0, 12, 0, 62)
+            clickCountLabel.BackgroundTransparency = 1
+            clickCountLabel.Text = "CPS: --"
+            clickCountLabel.Font = Enum.Font.GothamBlack
+            clickCountLabel.TextSize = 20
+            clickCountLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
+            clickCountLabel.TextXAlignment = Enum.TextXAlignment.Left
+            clickCountLabel.ZIndex = 4
+            clickCountLabel.Parent = clickCard
+
+            local startTestBtn = Instance.new("TextButton")
+            startTestBtn.Size = UDim2.new(1, -20, 0, 34)
+            startTestBtn.Position = UDim2.new(0, 10, 0, 100)
+            startTestBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 130)
+            startTestBtn.Text = "▶ START TEST (5s)"
+            startTestBtn.Font = Enum.Font.GothamBlack
+            startTestBtn.TextSize = 12
+            startTestBtn.TextColor3 = Color3.fromRGB(5, 10, 20)
+            startTestBtn.ZIndex = 4
+            startTestBtn.Parent = clickCard
+            Instance.new("UICorner", startTestBtn).CornerRadius = UDim.new(0, 8)
+
+            local clickTesting = false
+            local clickCount = 0
+
+            startTestBtn.MouseButton1Click:Connect(function()
+                if clickTesting then return end
+                clickTesting = true
+                clickCount = 0
+                startTestBtn.Text = "⏳ Đang đo... nhấp chuột!"
+                startTestBtn.BackgroundColor3 = Color3.fromRGB(255, 160, 0)
+                clickResultLabel.Text = "Nhấp chuột liên tục trong 5 giây!"
+                clickCountLabel.Text = "CPS: 0"
+
+                -- Đếm click trong 5 giây
+                local conn
+                conn = Engine.Services.UIS.InputBegan:Connect(function(input)
+                    if not clickTesting then conn:Disconnect() return end
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        clickCount += 1
+                        clickCountLabel.Text = "Clicks: " .. clickCount
+                    end
+                end)
+
+                task.spawn(function()
+                    for i = 5, 1, -1 do
+                        if not clickTesting then break end
+                        startTestBtn.Text = "⏳ Còn " .. i .. " giây..."
+                        task.wait(1)
+                    end
+                    conn:Disconnect()
+                    clickTesting = false
+
+                    local cps = math.floor(clickCount / 5 * 10) / 10
+                    local rating = cps >= 15 and "🔥 SIÊU NHANH!" or cps >= 10 and "⚡ Nhanh!" or cps >= 6 and "👍 Bình thường" or "🐢 Chậm"
+                    clickCountLabel.Text = "CPS: " .. cps
+                    clickResultLabel.Text = rating .. "  |  Tổng: " .. clickCount .. " clicks / 5s"
+                    startTestBtn.Text = "▶ START TEST (5s)"
+                    startTestBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 130)
+                end)
+            end)
+
+            -- [C] AUTO SHOOT TEST
+            local shootCard = Instance.new("Frame")
+            shootCard.Size = UDim2.new(1, -10, 0, 155)
+            shootCard.BackgroundColor3 = Color3.fromRGB(10, 15, 28)
+            shootCard.BackgroundTransparency = 0.2
+            shootCard.ZIndex = 3
+            shootCard.Parent = pageAdmin
+            Instance.new("UICorner", shootCard).CornerRadius = UDim.new(0, 12)
+
+            local shootCardStroke = Instance.new("UIStroke")
+            shootCardStroke.Thickness = 1.5
+            shootCardStroke.Color = Color3.fromRGB(255, 80, 80)
+            shootCardStroke.Transparency = 0.4
+            shootCardStroke.Parent = shootCard
+
+            local shootCardTitle = Instance.new("TextLabel")
+            shootCardTitle.Size = UDim2.new(1, -20, 0, 24)
+            shootCardTitle.Position = UDim2.new(0, 12, 0, 8)
+            shootCardTitle.BackgroundTransparency = 1
+            shootCardTitle.Text = "🔫 TEST TỰ ĐỘNG BẮN"
+            shootCardTitle.Font = Enum.Font.GothamBlack
+            shootCardTitle.TextSize = 13
+            shootCardTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+            shootCardTitle.TextXAlignment = Enum.TextXAlignment.Left
+            shootCardTitle.ZIndex = 4
+            shootCardTitle.Parent = shootCard
+
+            local shootStatusLabel = Instance.new("TextLabel")
+            shootStatusLabel.Size = UDim2.new(1, -20, 0, 20)
+            shootStatusLabel.Position = UDim2.new(0, 12, 0, 36)
+            shootStatusLabel.BackgroundTransparency = 1
+            shootStatusLabel.Text = "Trạng thái: Dừng"
+            shootStatusLabel.Font = Enum.Font.GothamBold
+            shootStatusLabel.TextSize = 11
+            shootStatusLabel.TextColor3 = Color3.fromRGB(200, 215, 235)
+            shootStatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+            shootStatusLabel.ZIndex = 4
+            shootStatusLabel.Parent = shootCard
+
+            local shootCountLabel = Instance.new("TextLabel")
+            shootCountLabel.Size = UDim2.new(1, -20, 0, 28)
+            shootCountLabel.Position = UDim2.new(0, 12, 0, 58)
+            shootCountLabel.BackgroundTransparency = 1
+            shootCountLabel.Text = "Shots: 0  |  50 CPS"
+            shootCountLabel.Font = Enum.Font.GothamBlack
+            shootCountLabel.TextSize = 18
+            shootCountLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            shootCountLabel.TextXAlignment = Enum.TextXAlignment.Left
+            shootCountLabel.ZIndex = 4
+            shootCountLabel.Parent = shootCard
+
+            local shootToggleBtn = Instance.new("TextButton")
+            shootToggleBtn.Size = UDim2.new(1, -20, 0, 36)
+            shootToggleBtn.Position = UDim2.new(0, 10, 0, 108)
+            shootToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            shootToggleBtn.Text = "▶ BẮT ĐẦU TEST BẮN"
+            shootToggleBtn.Font = Enum.Font.GothamBlack
+            shootToggleBtn.TextSize = 12
+            shootToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            shootToggleBtn.ZIndex = 4
+            shootToggleBtn.Parent = shootCard
+            Instance.new("UICorner", shootToggleBtn).CornerRadius = UDim.new(0, 8)
+
+            local shootTestActive = false
+            local shootTestThread = nil
+            local totalShotsTest = 0
+
+            shootToggleBtn.MouseButton1Click:Connect(function()
+                Engine.Modules.AudioFX:Click()
+                shootTestActive = not shootTestActive
+
+                if shootTestActive then
+                    totalShotsTest = 0
+                    shootToggleBtn.Text = "⏹ DỪNG TEST"
+                    shootToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+                    shootStatusLabel.Text = "Trạng thái: 🔴 ĐANG BẮN..."
+
+                    shootTestThread = task.spawn(function()
+                        while shootTestActive do
+                            task.wait(0.02) -- 50 shots/giây
+                            pcall(function()
+                                local char = LocalPlayer.Character
+                                if not char then return end
+
+                                -- Click chuột trái LUÔN LUÔN (không cần tool)
+                                TriggerMouseClick()
+                                totalShotsTest += 1
+                                shootCountLabel.Text = "Shots: " .. totalShotsTest .. "  |  50 CPS"
+
+                                -- Nếu có tool thì kích hoạt thêm
+                                local tool = char:FindFirstChildOfClass("Tool")
+                                if tool then
+                                    shootStatusLabel.Text = "🔴 ĐANG BẮN: " .. tool.Name
+                                    tool:Activate()
+                                    for _, v in ipairs(tool:GetDescendants()) do
+                                        if v:IsA("RemoteEvent") then
+                                            local n = v.Name:lower()
+                                            if n:find("fire") or n:find("shoot") or n:find("attack") or n:find("use") or n:find("action") then
+                                                pcall(function() v:FireServer() end)
+                                            end
+                                        end
+                                    end
+                                else
+                                    shootStatusLabel.Text = "⚠️ Không có Tool — chỉ click chuột"
+                                end
+                            end)
+                        end
+                    end)
+                else
+                    shootTestActive = false
+                    if shootTestThread then task.cancel(shootTestThread) end
+                    shootToggleBtn.Text = "▶ BẮT ĐẦU TEST BẮN"
+                    shootToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                    shootStatusLabel.Text = "Dừng  |  Tổng: " .. totalShotsTest .. " shots"
+                end
+            end)
+
+            -- [D] BẢNG LỆNH CHI TIẾT
+            local cmdListCard = Instance.new("Frame")
+            cmdListCard.Size = UDim2.new(1, -10, 0, 430)
+            cmdListCard.BackgroundColor3 = Color3.fromRGB(10, 15, 28)
+            cmdListCard.BackgroundTransparency = 0.2
+            cmdListCard.ZIndex = 3
+            cmdListCard.Parent = pageAdmin
+            Instance.new("UICorner", cmdListCard).CornerRadius = UDim.new(0, 12)
+
+            Instance.new("UIStroke", cmdListCard).Color = Color3.fromRGB(120, 80, 255)
+
+            local listTitle = Instance.new("TextLabel")
+            listTitle.Size = UDim2.new(1, -20, 0, 28)
+            listTitle.Position = UDim2.new(0, 12, 0, 6)
+            listTitle.BackgroundTransparency = 1
+            listTitle.Text = "📖 BẢNG LỆNH ADMIN — Nhấn dòng để tự điền"
+            listTitle.Font = Enum.Font.GothamBlack
+            listTitle.TextSize = 12
+            listTitle.TextColor3 = Color3.fromRGB(160, 120, 255)
+            listTitle.TextXAlignment = Enum.TextXAlignment.Left
+            listTitle.ZIndex = 4
+            listTitle.Parent = cmdListCard
+
+            local scrollList = Instance.new("ScrollingFrame")
+            scrollList.Size = UDim2.new(1, -16, 1, -40)
+            scrollList.Position = UDim2.new(0, 8, 0, 38)
+            scrollList.BackgroundTransparency = 1
+            scrollList.ScrollBarThickness = 3
+            scrollList.ScrollBarImageColor3 = Color3.fromRGB(120, 80, 255)
+            scrollList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+            scrollList.CanvasSize = UDim2.new(0, 0, 0, 0)
+            scrollList.ZIndex = 4
+            scrollList.Parent = cmdListCard
+            Instance.new("UIListLayout", scrollList).Padding = UDim.new(0, 3)
+
+            local cmdGroups = {
+                { color = Color3.fromRGB(0, 220, 255), title = "🚀 DI CHUYỂN", cmds = {
+                    {"speed [số]",      "Đặt tốc độ chạy — vd: speed 100"},
+                    {"fly / fly off",   "Bật / tắt bay"},
+                    {"noclip / noclip off", "Bật / tắt xuyên tường"},
+                    {"jump [số]",       "Đặt lực nhảy — vd: jump 150"},
+                    {"infjump",         "Toggle nhảy vô hạn"},
+                    {"freeze / unfreeze","Đóng băng / giải băng nhân vật"},
+                    {"respawn",         "Tái sinh lại nhân vật"},
+                }},
+                { color = Color3.fromRGB(255, 80, 80), title = "⚔️ CHIẾN ĐẤU", cmds = {
+                    {"god / ungod",     "Bật / tắt vô địch HP đầy"},
+                    {"kill all",        "Kill toàn bộ player"},
+                    {"kill me",         "Kill bản thân"},
+                    {"hitbox [số]",     "Đặt kích thước hitbox — vd: hitbox 15"},
+                    {"fov [số]",        "Đặt Aimbot FOV — vd: fov 300"},
+                    {"esp / esp off",   "Bật / tắt ESP"},
+                }},
+                { color = Color3.fromRGB(0, 255, 170), title = "🎭 NHÂN VẬT", cmds = {
+                    {"invisible",       "Ẩn nhân vật hoàn toàn"},
+                    {"visible",         "Hiện nhân vật lại"},
+                    {"size [số]",       "Thay đổi kích thước — vd: size 2"},
+                }},
+                { color = Color3.fromRGB(255, 200, 0), title = "🌐 DI CHUYỂN PLAYER", cmds = {
+                    {"tp [tên]",        "Teleport đến player — vd: tp abc"},
+                    {"bring [tên]",     "Kéo player đến mình — vd: bring abc"},
+                }},
+                { color = Color3.fromRGB(180, 130, 255), title = "⚙️ HỆ THỐNG", cmds = {
+                    {"farm / farm off", "Bật / tắt Auto Farm"},
+                    {"help",            "Xem danh sách lệnh nhanh trong Log"},
+                    {"[Lua code]",      "Thực thi thẳng code Lua bất kỳ"},
+                }},
+            }
+
+            for _, group in ipairs(cmdGroups) do
+                local header = Instance.new("TextLabel")
+                header.Size = UDim2.new(1, 0, 0, 22)
+                header.BackgroundColor3 = Color3.fromRGB(18, 24, 42)
+                header.BackgroundTransparency = 0.1
+                header.Text = "  " .. group.title
+                header.Font = Enum.Font.GothamBlack
+                header.TextSize = 11
+                header.TextColor3 = group.color
+                header.TextXAlignment = Enum.TextXAlignment.Left
+                header.ZIndex = 5
+                header.Parent = scrollList
+                Instance.new("UICorner", header).CornerRadius = UDim.new(0, 5)
+
+                for _, pair in ipairs(group.cmds) do
+                    local row = Instance.new("TextButton")
+                    row.Size = UDim2.new(1, 0, 0, 34)
+                    row.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                    row.BackgroundTransparency = 0.95
+                    row.Text = ""
+                    row.ZIndex = 5
+                    row.Parent = scrollList
+                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+
+                    local cmdTag = Instance.new("TextLabel")
+                    cmdTag.Size = UDim2.new(0.44, -6, 1, 0)
+                    cmdTag.Position = UDim2.new(0, 8, 0, 0)
+                    cmdTag.BackgroundTransparency = 1
+                    cmdTag.Text = pair[1]
+                    cmdTag.Font = Enum.Font.GothamBold
+                    cmdTag.TextSize = 10
+                    cmdTag.TextColor3 = group.color
+                    cmdTag.TextXAlignment = Enum.TextXAlignment.Left
+                    cmdTag.TextTruncate = Enum.TextTruncate.AtEnd
+                    cmdTag.ZIndex = 6
+                    cmdTag.Parent = row
+
+                    local descTag = Instance.new("TextLabel")
+                    descTag.Size = UDim2.new(0.56, -8, 1, 0)
+                    descTag.Position = UDim2.new(0.44, 2, 0, 0)
+                    descTag.BackgroundTransparency = 1
+                    descTag.Text = pair[2]
+                    descTag.Font = Enum.Font.GothamMedium
+                    descTag.TextSize = 10
+                    descTag.TextColor3 = Color3.fromRGB(185, 200, 220)
+                    descTag.TextXAlignment = Enum.TextXAlignment.Left
+                    descTag.TextWrapped = true
+                    descTag.ZIndex = 6
+                    descTag.Parent = row
+
+                    -- Hover highlight
+                    row.MouseEnter:Connect(function()
+                        row.BackgroundTransparency = 0.85
+                    end)
+                    row.MouseLeave:Connect(function()
+                        row.BackgroundTransparency = 0.95
+                    end)
+
+                    -- Nhấn vào → tự điền lệnh vào ô input
+                    row.MouseButton1Click:Connect(function()
+                        Engine.Modules.AudioFX:Click()
+                        local baseCmd = pair[1]:match("^([%a%s]+)") or pair[1]
+                        cmdBox.Text = baseCmd:gsub("%s+$", "")
+                        cmdBox:CaptureFocus()
+                    end)
+                end
+            end
+        end
     end,
     
     CreateToggle = function(self, parent, text, configKey, callback)
