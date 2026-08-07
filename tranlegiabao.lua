@@ -13,13 +13,25 @@ local Engine = {
     Status = "Booting",
     Author = "Trần Lê Gia Bảo",
     
+    CustomLogoID = "", -- Điền "rbxassetid://ID" tại đây nếu muốn dùng Roblox Decal ID trực tiếp
+    
     GetLogoAsset = function(self)
+        if self.CustomLogoID and self.CustomLogoID ~= "" then
+            return self.CustomLogoID
+        end
+
         local getasset = getcustomasset or getsynasset or custom_asset
-        if not getasset then return nil end
+        
+        -- Nếu file bun.jpg đã có sẵn trong Workspace local
+        if isfile and isfile("bun.jpg") and getasset then
+            local ok, asset = pcall(function() return getasset("bun.jpg") end)
+            if ok and asset then return asset end
+        end
 
         -- Tự động tải file bun.jpg từ GitHub nếu chưa có trong Workspace local
-        if isfile and writefile and not isfile("bun.jpg") then
+        if isfile and writefile and getasset then
             local repoUrls = {
+                "https://raw.githubusercontent.com/giabaotranle04112011/zoo-or-oof-by-giabaotranle04112011/main/bun.jpg",
                 "https://raw.githubusercontent.com/giabaotranle04112011/getkey/main/bun.jpg",
                 "https://raw.githubusercontent.com/giabaotranle04112011/rbzoo/main/bun.jpg",
                 "https://raw.githubusercontent.com/giabaotranle04112011/tranlegiabao/main/bun.jpg"
@@ -30,7 +42,7 @@ local Engine = {
                 if httpRequest then
                     pcall(function()
                         local res = httpRequest({ Url = logoUrl, Method = "GET" })
-                        if res and res.Success and res.Body and #res.Body > 100 then
+                        if res and res.Body and #res.Body > 100 then
                             imageBytes = res.Body
                         end
                     end)
@@ -43,15 +55,13 @@ local Engine = {
                 end
                 if imageBytes then
                     pcall(function() writefile("bun.jpg", imageBytes) end)
+                    local ok, asset = pcall(function() return getasset("bun.jpg") end)
+                    if ok and asset then return asset end
                     break
                 end
             end
         end
 
-        if isfile and isfile("bun.jpg") then
-            local ok, asset = pcall(function() return getasset("bun.jpg") end)
-            if ok and asset then return asset end
-        end
         return nil
     end
 }
@@ -518,22 +528,27 @@ Engine.Modules.KeySystem = {
         end
 
         -- Lấy Commit SHA mới nhất để tránh Cache Fastly của GitHub
-        local commitApiUrl = string.format("https://api.github.com/repos/%s/%s/commits/main", self.RepoOwner, self.RepoName)
-        local apiResponse = httpGetRaw(commitApiUrl)
-        
-        if apiResponse then
-            local ok, commitData = pcall(function() return Engine.Services.HttpService:JSONDecode(apiResponse) end)
-            if ok and commitData and commitData.sha then
-                local shaUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", self.RepoOwner, self.RepoName, commitData.sha, self.FilePath)
-                local shaRawContent = httpGetRaw(shaUrl)
-                if shaRawContent then
-                    return shaRawContent
+        local reposToTry = { self.RepoName, "zoo-or-oof-by-giabaotranle04112011" }
+        for _, repo in ipairs(reposToTry) do
+            local commitApiUrl = string.format("https://api.github.com/repos/%s/%s/commits/main", self.RepoOwner, repo)
+            local apiResponse = httpGetRaw(commitApiUrl)
+            
+            if apiResponse then
+                local ok, commitData = pcall(function() return Engine.Services.HttpService:JSONDecode(apiResponse) end)
+                if ok and commitData and commitData.sha then
+                    local shaUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", self.RepoOwner, repo, commitData.sha, self.FilePath)
+                    local shaRawContent = httpGetRaw(shaUrl)
+                    if shaRawContent then
+                        return shaRawContent
+                    end
                 end
             end
-        end
 
-        local directUrl = string.format("https://raw.githubusercontent.com/%s/%s/main/%s?nocache=%d", self.RepoOwner, self.RepoName, self.FilePath, os.time())
-        return httpGetRaw(directUrl)
+            local directUrl = string.format("https://raw.githubusercontent.com/%s/%s/main/%s?nocache=%d", self.RepoOwner, repo, self.FilePath, os.time())
+            local res = httpGetRaw(directUrl)
+            if res then return res end
+        end
+        return nil
     end,
 
     -- SỬA LỖI: Hỗ trợ mọi tiền tố Key (FREE-, TLGB-, VIP7-, VIP30-...)
@@ -1630,15 +1645,6 @@ Engine.Modules.UIController = {
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         
-        local logoGlowRing = Instance.new("Frame")
-        logoGlowRing.Size = UDim2.new(0, 64, 0, 64)
-        logoGlowRing.Position = UDim2.new(0, 17, 0.5, -32)
-        logoGlowRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
-        logoGlowRing.BackgroundTransparency = 0.85
-        logoGlowRing.Parent = sg
-        Instance.new("UICorner", logoGlowRing).CornerRadius = UDim.new(1, 0)
-        table.insert(self.ChromaObjects, logoGlowRing)
-
         self.LogoButton = Instance.new("TextButton")
         self.LogoButton.Size = UDim2.new(0, 58, 0, 58)
         self.LogoButton.Position = UDim2.new(0, 20, 0.5, -29)
@@ -1649,6 +1655,15 @@ Engine.Modules.UIController = {
         self.LogoButton.Draggable = true
         self.LogoButton.Parent = sg
         Instance.new("UICorner", self.LogoButton).CornerRadius = UDim.new(1, 0)
+
+        local logoGlowRing = Instance.new("Frame")
+        logoGlowRing.Size = UDim2.new(1, 10, 1, 10)
+        logoGlowRing.Position = UDim2.new(0, -5, 0, -5)
+        logoGlowRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        logoGlowRing.BackgroundTransparency = 0.85
+        logoGlowRing.Parent = self.LogoButton
+        Instance.new("UICorner", logoGlowRing).CornerRadius = UDim.new(1, 0)
+        table.insert(self.ChromaObjects, logoGlowRing)
         
         local logoAsset = Engine:GetLogoAsset()
         if logoAsset then
@@ -1677,6 +1692,25 @@ Engine.Modules.UIController = {
         logoStroke.Parent = self.LogoButton
         table.insert(self.ChromaObjects, logoStroke)
         table.insert(self.ChromaObjects, self.LogoButton)
+        
+        -- Tự động retry thay thế logo bun.jpg khi tải xong từ Server
+        task.spawn(function()
+            task.wait(0.6)
+            if self.LogoButton and not self.LogoButton:FindFirstChildOfClass("ImageLabel") then
+                local retryAsset = Engine:GetLogoAsset()
+                if retryAsset then
+                    local oldText = self.LogoButton:FindFirstChildOfClass("TextLabel")
+                    if oldText then oldText:Destroy() end
+                    local logoImg = Instance.new("ImageLabel")
+                    logoImg.Size = UDim2.new(1, 0, 1, 0)
+                    logoImg.BackgroundTransparency = 1
+                    logoImg.Image = retryAsset
+                    logoImg.ScaleType = Enum.ScaleType.Crop
+                    logoImg.Parent = self.LogoButton
+                    Instance.new("UICorner", logoImg).CornerRadius = UDim.new(1, 0)
+                end
+            end
+        end)
         
         self.LogoButton.MouseButton1Click:Connect(function()
             self.MainFrame.Visible = not self.MainFrame.Visible
