@@ -1798,61 +1798,57 @@ Engine.Modules.HunterHUD = {
 }
 
 -- ==========================================
--- [11] STANDALONE AUTO ATTACK ENGINE (CHỈ XẢ ĐẠN/CLICK KHI LÀ ZOOKEEPER HOẶC CÓ SÚNG)
+-- [11] STANDALONE AUTO ATTACK / AUTO SHOOT ENGINE (50 CPS - ZOOKEEPER ONLY AUTO-TOGGLE)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.02) do
         pcall(function()
-            local autoAttackEnabled = Engine.Modules.ConfigManager.Settings.AutoAttack
-            local autoFarmEnabled = Engine.Modules.ConfigManager.Settings.AutoFarm
-            
-            if autoAttackEnabled or autoFarmEnabled then
-                local role = DeterminePlayerRole(LocalPlayer)
-                -- Auto Attack (Xả đạn súng/chuột trái) chỉ chạy khi là Zookeeper
-                if role == "ZOOKEEPER" then
-                    -- Nếu đang bật AutoFarm, chỉ click/bắn khi có mục tiêu thực sự hợp lệ
-                    if autoFarmEnabled and (not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget)) then
-                        return
-                    end
+            local currentRole = DeterminePlayerRole(LocalPlayer)
+            Engine.State.CurrentRole = currentRole
 
-                    local char = LocalPlayer.Character
-                    if char then
-                        local tool = char:FindFirstChildOfClass("Tool")
-                        if not tool then
-                            local backpack = LocalPlayer:FindFirstChild("Backpack")
-                            if backpack then
-                                local gTool = backpack:FindFirstChildOfClass("Tool")
-                                local hum = char:FindFirstChildOfClass("Humanoid")
-                                if gTool and hum then
-                                    hum:EquipTool(gTool)
-                                    tool = gTool
-                                end
+            -- NẾU LÀ OOF HOẶC NGƯỜI THƯỜNG (NEUTRAL): TỰ ĐỘNG TẮT HOÀN TOÀN
+            if currentRole == "OOF" or currentRole == "NEUTRAL" then
+                return
+            end
+            
+            -- NẾU LÀ ZOOKEEPER: TỰ ĐỘNG BẬT VÀ BẮN/CLICK 50 CPS LIÊN TỤC
+            if currentRole == "ZOOKEEPER" then
+                local char = LocalPlayer.Character
+                if char then
+                    -- 1. Tự động lấy súng/vũ khí ra tay nếu đang cất trong ba lô
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if not tool then
+                        local backpack = LocalPlayer:FindFirstChild("Backpack")
+                        if backpack then
+                            local gTool = backpack:FindFirstChildOfClass("Tool")
+                            local hum = char:FindFirstChildOfClass("Humanoid")
+                            if gTool and hum then
+                                hum:EquipTool(gTool)
+                                tool = gTool
                             end
                         end
-                        
-                        if tool then
-                            -- 1. Kích hoạt Tool trực tiếp
-                            tool:Activate()
-                            
-                            -- 2. Gửi RemoteEvent bắn súng bên trong Tool nếu có
-                            for _, v in ipairs(tool:GetDescendants()) do
-                                if v:IsA("RemoteEvent") then
-                                    local n = v.Name:lower()
-                                    if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") then
-                                        if Engine.State.CurrentTarget then
-                                            v:FireServer(Engine.State.CurrentTarget.Position)
-                                            v:FireServer(Engine.State.CurrentTarget)
-                                        else
-                                            v:FireServer()
-                                        end
+                    end
+                    
+                    -- 2. Tự động nhả đạn & bắn RemoteEvent vũ khí
+                    if tool then
+                        tool:Activate()
+                        for _, v in ipairs(tool:GetDescendants()) do
+                            if v:IsA("RemoteEvent") then
+                                local n = v.Name:lower()
+                                if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") then
+                                    if Engine.State.CurrentTarget then
+                                        pcall(function() v:FireServer(Engine.State.CurrentTarget.Position) end)
+                                        pcall(function() v:FireServer(Engine.State.CurrentTarget) end)
+                                    else
+                                        pcall(function() v:FireServer() end)
                                     end
                                 end
                             end
-                            
-                            -- 3. Mô phỏng Click Chuột Trái thật liên tục
-                            TriggerMouseClick()
                         end
                     end
+                    
+                    -- 3. Click chuột trái thật siêu tốc 50 lần/giây (50 CPS)
+                    TriggerMouseClick()
                 end
             end
         end)
@@ -1860,7 +1856,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [12] STANDALONE AUTO SKILL ENGINE (CHẨN ĐOÁN CHÍNH XÁC: ZOO CHỈ NHẤN Q, OOF CHỈ NHẤN E)
+-- [12] STANDALONE AUTO SKILL ENGINE (V8 PERFECT Q/E LOCK)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.3) do
@@ -1871,15 +1867,11 @@ task.spawn(function()
                     local role = DeterminePlayerRole(LocalPlayer)
                     Engine.State.CurrentRole = role
 
-                    -- CHỈ NHẤN PHÍM TƯƠNG ỨNG VỚI VAI TRÒ (STRICT ROLE LOCKing):
                     if role == "ZOOKEEPER" then
-                        -- Khi là Zookeeper: CHỈ BẤM PHÍM Q
                         PressKey(Enum.KeyCode.Q)
                     elseif role == "OOF" then
-                        -- Khi là OOF: CHỈ BẤM PHÍM E
                         PressKey(Enum.KeyCode.E)
                     else
-                        -- Trường hợp Neutral: Kiểm tra tên vũ khí đang cầm để quyết định phím bấm
                         local tool = char:FindFirstChildOfClass("Tool") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChildOfClass("Tool"))
                         if tool then
                             local tName = tool.Name:lower()
@@ -1892,18 +1884,6 @@ task.spawn(function()
                             PressKey(Enum.KeyCode.Q)
                         end
                     end
-                    
-                    -- Kích hoạt thêm RemoteEvent kỹ năng riêng của nhân vật
-                    for _, v in ipairs(char:GetDescendants()) do
-                        if v:IsA("RemoteEvent") then
-                            local n = v.Name:lower()
-                            if role == "ZOOKEEPER" and (n:find("q") or n:find("zoo") or n:find("skill")) then
-                                v:FireServer()
-                            elseif role == "OOF" and (n:find("e") or n:find("oof") or n:find("ability")) then
-                                v:FireServer()
-                            end
-                        end
-                    end
                 end
             end
         end)
@@ -1911,35 +1891,12 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- [13] FARM ENGINE 2.0
+-- [13] FARM ENGINE V8 ULTIMATE (SMART WALL BYPASS & REAL-TIME HUNTER AI)
 -- ==========================================
 Engine.Modules.FarmManager = {
     StuckTracker = { LastPos = Vector3.zero, StuckTime = 0, OffsetVector = Vector3.zero },
-    LastActions = { Attack = 0, Skill = 0, Prompt = 0, Weapon = 0 },
+    LastActions = { Attack = 0, Skill = 0, Prompt = 0 },
     
-    AutoEquipBestTool = function(self)
-        if not Engine.Modules.ConfigManager.Settings.AutoWeapon then return end
-        if tick() - self.LastActions.Weapon < 1.0 then return end
-        self.LastActions.Weapon = tick()
-
-        pcall(function()
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not hum then return end
-
-            local currentTool = char:FindFirstChildOfClass("Tool")
-            if not currentTool then
-                local backpack = LocalPlayer:FindFirstChild("Backpack")
-                if backpack then
-                    local tools = backpack:GetChildren()
-                    if #tools > 0 then
-                        hum:EquipTool(tools[1])
-                    end
-                end
-            end
-        end)
-    end,
-
     Start = function(self)
         self:Stop()
         local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -1956,7 +1913,6 @@ Engine.Modules.FarmManager = {
         local scanThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
                 Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
-                self:AutoEquipBestTool()
                 
                 if not IsTargetValid(Engine.State.CurrentTarget) then
                     if Engine.State.CurrentTarget ~= nil then
@@ -1971,7 +1927,21 @@ Engine.Modules.FarmManager = {
         
         local actionThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
-                if Engine.Modules.ConfigManager.Settings.AutoMoney and tick() - self.LastActions.Prompt > 1.2 then
+                if Engine.State.CurrentRole == "OOF" and Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
+                    if Engine.Modules.ConfigManager.Settings.AutoSkill and tick() - self.LastActions.Skill > 3.2 then
+                        self.LastActions.Skill = tick()
+                        PressKey(Enum.KeyCode.E)
+                    end
+                end
+                
+                if Engine.State.CurrentRole == "ZOOKEEPER" and Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
+                    if Engine.Modules.ConfigManager.Settings.AutoSkill and tick() - self.LastActions.Skill > 2.5 then
+                        self.LastActions.Skill = tick()
+                        PressKey(Enum.KeyCode.Q)
+                    end
+                end
+                
+                if Engine.State.CurrentRole == "ZOOKEEPER" and Engine.Modules.ConfigManager.Settings.AutoMoney and tick() - self.LastActions.Prompt > 1.5 then
                     self.LastActions.Prompt = tick()
                     for _, item in ipairs(Engine.Cache.Prompts) do
                         if fireproximityprompt and item.Prompt and item.Prompt.Parent then
@@ -1980,59 +1950,13 @@ Engine.Modules.FarmManager = {
                         end
                     end
                 end
-                task.wait(0.12)
+                task.wait(0.15)
             end
         end)
         table.insert(Engine.State.FarmConnections, actionThread)
-
-        -- =============================================
-        -- FARM AUTO SHOOT: Tự động bắn/nhấp chuột trái
-        -- CHỈ KHI LÀ ZOOKEEPER VÀ CÓ MỤC TIÊU HỢP LỆ
-        -- =============================================
-        local shootThread = task.spawn(function()
-            while Engine.Modules.ConfigManager.Settings.AutoFarm do
-                task.wait(0.02) -- 50 lần bắn / giây
-                pcall(function()
-                    local myRole = DeterminePlayerRole(LocalPlayer)
-                    if myRole ~= "ZOOKEEPER" then return end
-                    if not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget) then return end
-
-                    local char = LocalPlayer.Character
-                    if not char then return end
-
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    if not tool then return end
-
-                    -- 1. Kích hoạt Tool (Activate = nhả đạn)
-                    tool:Activate()
-
-                    -- 2. Bắn qua RemoteEvent bên trong Tool (nếu game hỗ trợ)
-                    for _, v in ipairs(tool:GetDescendants()) do
-                        if v:IsA("RemoteEvent") then
-                            local n = v.Name:lower()
-                            if n:find("fire") or n:find("shoot") or n:find("attack") or n:find("use") or n:find("action") then
-                                if Engine.State.CurrentTarget then
-                                    pcall(function() v:FireServer(Engine.State.CurrentTarget.Position) end)
-                                    pcall(function() v:FireServer(Engine.State.CurrentTarget) end)
-                                else
-                                    pcall(function() v:FireServer() end)
-                                end
-                            end
-                        end
-                    end
-
-                    -- 3. Mô phỏng nhấp chuột trái thật (siêu nhanh)
-                    TriggerMouseClick()
-                end)
-            end
-        end)
-        table.insert(Engine.State.FarmConnections, shootThread)
         
         local farmLoop = Engine.Services.RunService.Heartbeat:Connect(function(dt)
             if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
-            local myRole = DeterminePlayerRole(LocalPlayer)
-            if myRole == "NEUTRAL" then return end -- NẾU LÀ NGƯỜI THƯỜNG: ĐỨNG YÊN TẠI CHỖ, KHÔNG TỰ BAY HAY BAY ĐẾN QUÁI!
-
             local char = LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -2050,7 +1974,7 @@ Engine.Modules.FarmManager = {
                 if (hrp.Position - self.StuckTracker.LastPos).Magnitude < 0.4 then
                     self.StuckTracker.StuckTime = self.StuckTracker.StuckTime + dt
                     if self.StuckTracker.StuckTime > 1.5 then
-                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-15, 15), 12, math.random(-15, 15))
+                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-15, 15), 10, math.random(-15, 15))
                         self.StuckTracker.StuckTime = 0
                     end
                 else
@@ -2066,12 +1990,12 @@ Engine.Modules.FarmManager = {
                 
                 if Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL" then
                     local targetCFrame = Engine.State.CurrentTarget.CFrame
-                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 11) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
+                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
                     
                     if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
                         local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
                         if not hasLOS then
-                            destination = targetPos + Vector3.new(0, 15, 0) + self.StuckTracker.OffsetVector
+                            destination = targetPos + Vector3.new(0, 14, 0) + self.StuckTracker.OffsetVector
                         else
                             destination = defaultPos
                         end
@@ -2094,12 +2018,28 @@ Engine.Modules.FarmManager = {
                     hrp.CFrame = CFrame.lookAt(currentPos, targetPos)
                 end
                 
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.3)
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.25)
+                
+                if (Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL") and Engine.Modules.ConfigManager.Settings.AutoAttack and tick() - self.LastActions.Attack > 0.08 then
+                    self.LastActions.Attack = tick()
+                    
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if not tool then
+                        local backpack = LocalPlayer:FindFirstChild("Backpack")
+                        if backpack then
+                            local gTool = backpack:FindFirstChildOfClass("Tool")
+                            if gTool and hum then hum:EquipTool(gTool) tool = gTool end
+                        end
+                    end
+                    
+                    if tool then tool:Activate() end
+                    TriggerMouseClick()
+                end
             end
         end)
         table.insert(Engine.State.FarmConnections, farmLoop)
         
-        Engine.Modules.NotificationManager:Notify("Cyberpunk Hunter V10.5", "AI Auto Farm 2.0 VIP Active!", 3)
+        Engine.Modules.NotificationManager:Notify("Zookeeper Hunter V8.0", "AI Auto Farm & Smart Wall Bypass Active!", 3)
     end,
     
     Stop = function(self)
@@ -2290,44 +2230,87 @@ Engine.Modules.UIController = {
             self.MainFrame.Visible = not self.MainFrame.Visible
         end)
         
-        -- Main Cyberpunk Container Frame
+        -- Main Frame — Ultra Glass Rainbow (Transparent + RGB Chroma)
         self.MainFrame = Instance.new("Frame")
-        self.MainFrame.Size = UDim2.new(0, 640, 0, 430)
-        self.MainFrame.Position = UDim2.new(0.5, -320, 0.5, -215)
-        self.MainFrame.BackgroundColor3 = Color3.fromRGB(9, 12, 22)
-        self.MainFrame.BackgroundTransparency = 0.2
+        self.MainFrame.Size = UDim2.new(0, 740, 0, 460)
+        self.MainFrame.Position = UDim2.new(0.5, -370, 0.5, -230)
+        self.MainFrame.BackgroundColor3 = Color3.fromRGB(10, 16, 32)
+        self.MainFrame.BackgroundTransparency = 0.35
         self.MainFrame.Active = true
         self.MainFrame.Draggable = true
         self.MainFrame.ClipsDescendants = true
         self.MainFrame.Parent = sg
-        Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 20)
-        
+        Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 24)
+
+        -- Glass Rainbow Stroke Outline (RGB Chroma Border)
         local mainStroke = Instance.new("UIStroke")
-        mainStroke.Thickness = 2.2
-        mainStroke.Transparency = 0.15
+        mainStroke.Thickness = 2
+        mainStroke.Transparency = 0.1
         mainStroke.Color = Color3.fromRGB(0, 240, 255)
         mainStroke.Parent = self.MainFrame
         table.insert(self.ChromaObjects, mainStroke)
+
+        -- Top glossy light reflection (UICorner added to prevent sticking out)
+        local glassShine = Instance.new("Frame")
+        glassShine.Size = UDim2.new(1, 0, 0, 80)
+        glassShine.Position = UDim2.new(0, 0, 0, 0)
+        glassShine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        glassShine.BorderSizePixel = 0
+        glassShine.ZIndex = 1
+        glassShine.Parent = self.MainFrame
+        Instance.new("UICorner", glassShine).CornerRadius = UDim.new(0, 24)
+
+        local shineGrad = Instance.new("UIGradient")
+        shineGrad.Rotation = 90
+        shineGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
+        })
+        shineGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.90),
+            NumberSequenceKeypoint.new(1, 1.0),
+        })
+        shineGrad.Parent = glassShine
+
+        -- Gradient accent line below header
+        local accentBar = Instance.new("Frame")
+        accentBar.Size = UDim2.new(1, 0, 0, 2)
+        accentBar.Position = UDim2.new(0, 0, 0, 70)
+        accentBar.BorderSizePixel = 0
+        accentBar.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        accentBar.ZIndex = 5
+        accentBar.Parent = self.MainFrame
+        table.insert(self.ChromaObjects, accentBar)
         
-        -- Header Bar
+        -- Header Bar (UICorner added so corners NEVER stick out!)
         local topBar = Instance.new("Frame")
-        topBar.Size = UDim2.new(1, 0, 0, 58)
-        topBar.BackgroundTransparency = 1
+        topBar.Size = UDim2.new(1, 0, 0, 70)
+        topBar.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
+        topBar.BackgroundTransparency = 0.55
+        topBar.BorderSizePixel = 0
+        topBar.ZIndex = 2
         topBar.Parent = self.MainFrame
-        
-        -- Creator Avatar Profile Frame
+        Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 24)
+
+        -- Avatar with glowing rainbow ring
+        local avatarRing = Instance.new("Frame")
+        avatarRing.Size = UDim2.new(0, 48, 0, 48)
+        avatarRing.Position = UDim2.new(0, 14, 0, 11)
+        avatarRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        avatarRing.BackgroundTransparency = 0.5
+        avatarRing.ZIndex = 2
+        avatarRing.Parent = topBar
+        Instance.new("UICorner", avatarRing).CornerRadius = UDim.new(1, 0)
+        table.insert(self.ChromaObjects, avatarRing)
+
         local creatorAvatar = Instance.new("ImageLabel")
-        creatorAvatar.Size = UDim2.new(0, 44, 0, 44)
-        creatorAvatar.Position = UDim2.new(0, 14, 0, 7)
-        creatorAvatar.BackgroundColor3 = Color3.fromRGB(20, 26, 42)
+        creatorAvatar.Size = UDim2.new(0, 42, 0, 42)
+        creatorAvatar.Position = UDim2.new(0, 3, 0, 3)
+        creatorAvatar.BackgroundColor3 = Color3.fromRGB(20, 30, 52)
         creatorAvatar.Image = "rbxassetid://0"
-        creatorAvatar.Parent = topBar
+        creatorAvatar.ZIndex = 3
+        creatorAvatar.Parent = avatarRing
         Instance.new("UICorner", creatorAvatar).CornerRadius = UDim.new(1, 0)
-        
-        local avatarStroke = Instance.new("UIStroke")
-        avatarStroke.Thickness = 1.8
-        avatarStroke.Color = Color3.fromRGB(0, 240, 255)
-        avatarStroke.Parent = creatorAvatar
 
         task.spawn(function()
             while creatorAvatar and creatorAvatar.Parent do
@@ -2344,43 +2327,96 @@ Engine.Modules.UIController = {
             end
         end)
 
+        -- Title + Version Badge
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, -75, 0, 26)
-        title.Position = UDim2.new(0, 68, 0, 6)
+        title.Size = UDim2.new(0, 320, 0, 26)
+        title.Position = UDim2.new(0, 72, 0, 10)
         title.BackgroundTransparency = 1
-        title.Text = "⚡ RB ZOO CYBERPUNK VIP V10.5"
+        title.Text = "⚡ RB ZOO SUPER PREMIUM"
         title.Font = Enum.Font.GothamBlack
-        title.TextSize = 14
+        title.TextSize = 16
+        title.TextColor3 = Color3.fromRGB(255, 255, 255)
         title.TextXAlignment = Enum.TextXAlignment.Left
+        title.ZIndex = 3
         title.Parent = topBar
         table.insert(self.ChromaObjects, title)
-        
+
+        local vBadge = Instance.new("TextLabel")
+        vBadge.Size = UDim2.new(0, 58, 0, 18)
+        vBadge.Position = UDim2.new(0, 72, 0, 38)
+        vBadge.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
+        vBadge.BackgroundTransparency = 0.75
+        vBadge.Text = "V11.0"
+        vBadge.Font = Enum.Font.GothamBlack
+        vBadge.TextSize = 10
+        vBadge.TextColor3 = Color3.fromRGB(0, 240, 255)
+        vBadge.ZIndex = 3
+        vBadge.Parent = topBar
+        Instance.new("UICorner", vBadge).CornerRadius = UDim.new(0, 6)
+        table.insert(self.ChromaObjects, vBadge)
+
         local authorLabel = Instance.new("TextLabel")
-        authorLabel.Size = UDim2.new(1, -75, 0, 18)
-        authorLabel.Position = UDim2.new(0, 68, 0, 30)
+        authorLabel.Size = UDim2.new(0, 280, 0, 18)
+        authorLabel.Position = UDim2.new(0, 138, 0, 38)
         authorLabel.BackgroundTransparency = 1
-        authorLabel.Text = "👑 Sáng tạo bởi: " .. Engine.Author .. "  |  Roblox: @" .. Engine.AuthorRoblox
+        authorLabel.Text = "👑 " .. Engine.Author .. "  @" .. Engine.AuthorRoblox
         authorLabel.Font = Enum.Font.GothamBold
         authorLabel.TextSize = 11
-        authorLabel.TextColor3 = Color3.fromRGB(255, 0, 140)
+        authorLabel.TextColor3 = Color3.fromRGB(255, 110, 200)
         authorLabel.TextXAlignment = Enum.TextXAlignment.Left
+        authorLabel.ZIndex = 3
         authorLabel.Parent = topBar
-        
-        local line = Instance.new("Frame")
-        line.Size = UDim2.new(1, -32, 0, 1)
-        line.Position = UDim2.new(0, 16, 1, -1)
-        line.BorderSizePixel = 0
-        line.BackgroundTransparency = 0.5
-        line.Parent = topBar
-        table.insert(self.ChromaObjects, line)
-        
+
+        -- Status Dot & Label (ONLINE)
+        local statusLabel = Instance.new("TextLabel")
+        statusLabel.Size = UDim2.new(0, 90, 0, 16)
+        statusLabel.Position = UDim2.new(1, -115, 0, 14)
+        statusLabel.BackgroundTransparency = 1
+        statusLabel.Text = "● ONLINE"
+        statusLabel.Font = Enum.Font.GothamBlack
+        statusLabel.TextSize = 10
+        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+        statusLabel.TextXAlignment = Enum.TextXAlignment.Right
+        statusLabel.ZIndex = 3
+        statusLabel.Parent = topBar
+
+        -- Hotkey Hints
+        local hkLabel = Instance.new("TextLabel")
+        hkLabel.Size = UDim2.new(0, 220, 0, 14)
+        hkLabel.Position = UDim2.new(1, -235, 0, 40)
+        hkLabel.BackgroundTransparency = 1
+        hkLabel.Text = "RShift: Menu  |  P: Farm  |  F: Fly"
+        hkLabel.Font = Enum.Font.GothamMedium
+        hkLabel.TextSize = 9
+        hkLabel.TextColor3 = Color3.fromRGB(140, 165, 200)
+        hkLabel.TextXAlignment = Enum.TextXAlignment.Right
+        hkLabel.ZIndex = 3
+        hkLabel.Parent = topBar
+
         local contentArea = Instance.new("Frame")
-        contentArea.Size = UDim2.new(1, 0, 1, -58)
-        contentArea.Position = UDim2.new(0, 0, 0, 58)
+        contentArea.Size = UDim2.new(1, 0, 1, -72)
+        contentArea.Position = UDim2.new(0, 0, 0, 72)
         contentArea.BackgroundTransparency = 1
         contentArea.Parent = self.MainFrame
-        
+
         self:BuildTabs(contentArea)
+        
+        -- Smooth Rainbow Chroma Controller
+        Engine.Services.RunService.RenderStepped:Connect(function()
+            local hue = (tick() % 5) / 5
+            local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
+            for _, obj in ipairs(self.ChromaObjects) do
+                if obj and obj.Parent then
+                    if obj:IsA("UIStroke") then
+                        obj.Color = rainbowColor
+                    elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                        obj.TextColor3 = rainbowColor
+                    elseif obj:IsA("Frame") then
+                        obj.BackgroundColor3 = rainbowColor
+                    end
+                end
+            end
+        end)
         
         Engine.Services.RunService.RenderStepped:Connect(function()
             local hue = tick() % 6 / 6
@@ -2449,81 +2485,172 @@ Engine.Modules.UIController = {
     BuildTabs = function(self, parent)
         local lang = Engine.Modules.ConfigManager.Settings.Language
         local dict = L[lang] or L.VN
-        
+
+        -- Sidebar — Liquid Glass
         local tabContainer = Instance.new("Frame")
-        tabContainer.Size = UDim2.new(0, 160, 1, -20)
-        tabContainer.Position = UDim2.new(0, 14, 0, 10)
-        tabContainer.BackgroundColor3 = Color3.fromRGB(15, 20, 34)
-        tabContainer.BackgroundTransparency = 0.4
+        tabContainer.Size = UDim2.new(0, 172, 1, -24)
+        tabContainer.Position = UDim2.new(0, 12, 0, 12)
+        tabContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        tabContainer.BackgroundTransparency = 0.92
+        tabContainer.ClipsDescendants = true
+        tabContainer.ZIndex = 3
         tabContainer.Parent = parent
-        Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 14)
-        
+        Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 16)
+
+        -- Glass border (Rainbow Chroma)
+        local tabStroke = Instance.new("UIStroke")
+        tabStroke.Thickness = 1.5
+        tabStroke.Color = Color3.fromRGB(0, 240, 255)
+        tabStroke.Transparency = 0.4
+        tabStroke.Parent = tabContainer
+        table.insert(self.ChromaObjects, tabStroke)
+
+        -- Top shine strip
+        local tabShine = Instance.new("Frame")
+        tabShine.Size = UDim2.new(1, 0, 0, 36)
+        tabShine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        tabShine.BackgroundTransparency = 0.93
+        tabShine.BorderSizePixel = 0
+        tabShine.ZIndex = 4
+        tabShine.Parent = tabContainer
+        Instance.new("UICorner", tabShine).CornerRadius = UDim.new(0, 16)
+
+        local tabPadding = Instance.new("UIPadding")
+        tabPadding.PaddingTop = UDim.new(0, 10)
+        tabPadding.PaddingLeft = UDim.new(0, 8)
+        tabPadding.PaddingRight = UDim.new(0, 8)
+        tabPadding.PaddingBottom = UDim.new(0, 8)
+        tabPadding.Parent = tabContainer
+
         local tabList = Instance.new("UIListLayout")
         tabList.SortOrder = Enum.SortOrder.LayoutOrder
-        tabList.Padding = UDim.new(0, 6)
+        tabList.Padding = UDim.new(0, 5)
         tabList.Parent = tabContainer
-        
+
         local pageContainer = Instance.new("Frame")
-        pageContainer.Size = UDim2.new(1, -195, 1, -20)
-        pageContainer.Position = UDim2.new(0, 184, 0, 10)
+        pageContainer.Size = UDim2.new(1, -200, 1, -24)
+        pageContainer.Position = UDim2.new(0, 196, 0, 12)
         pageContainer.BackgroundTransparency = 1
-        pageContainer.ZIndex = 2
+        pageContainer.ZIndex = 3
         pageContainer.Parent = parent
         
         local pages = {}
         local tabButtons = {}
+        local tabPills = {}
         
         local function createTab(name, first)
             local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 40)
-            btn.BackgroundTransparency = 1
-            btn.Text = "    " .. name
-            btn.TextColor3 = Color3.fromRGB(180, 195, 215)
+            btn.Size = UDim2.new(1, 0, 0, 42)
+            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            btn.BackgroundTransparency = first and 0.82 or 1
+            btn.Text = name
+            btn.TextColor3 = first and Color3.fromRGB(240, 248, 255) or Color3.fromRGB(140, 158, 190)
             btn.Font = Enum.Font.GothamBold
             btn.TextSize = 12
             btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.ZIndex = 5
             btn.Parent = tabContainer
-            
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
+
+            -- Pill border bên TRONG button (không trò ra ngoài)
+            local pill = Instance.new("Frame")
+            pill.Size = UDim2.new(0, 3, 0, 22)
+            pill.Position = UDim2.new(0, 0, 0.5, -11)
+            pill.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+            pill.BorderSizePixel = 0
+            pill.Visible = first
+            pill.ZIndex = 6
+            pill.Parent = btn
+            Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
+            if first then table.insert(self.ChromaObjects, pill) end
+
+            local btnPad = Instance.new("UIPadding")
+            btnPad.PaddingLeft = UDim.new(0, 14)
+            btnPad.Parent = btn
+
+            -- Glass active bg
+            if first then
+                local activeBg = Instance.new("UIGradient")
+                activeBg.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 200, 255)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 0, 255)),
+                })
+                activeBg.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0.85),
+                    NumberSequenceKeypoint.new(1, 0.95),
+                })
+                activeBg.Rotation = 90
+                activeBg.Parent = btn
+            end
+
             local page = Instance.new("ScrollingFrame")
             page.Size = UDim2.new(1, 0, 1, 0)
             page.BackgroundTransparency = 1
             page.BorderSizePixel = 0
-            page.ScrollBarThickness = 4
+            page.ScrollBarThickness = 3
             page.ScrollBarImageTransparency = 0.5
             page.ScrollBarImageColor3 = Color3.fromRGB(0, 240, 255)
             page.Visible = first
-            page.ZIndex = 2
+            page.ZIndex = 3
             page.AutomaticCanvasSize = Enum.AutomaticSize.Y
             page.CanvasSize = UDim2.new(0, 0, 0, 0)
             page.Parent = pageContainer
-            
+
+            local pagePad = Instance.new("UIPadding")
+            pagePad.PaddingRight = UDim.new(0, 6)
+            pagePad.Parent = page
+
             local pageLayout = Instance.new("UIListLayout")
             pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
             pageLayout.Padding = UDim.new(0, 8)
             pageLayout.Parent = page
-            
+
             pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20)
             end)
-            
-            if first then
-                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                table.insert(self.ChromaObjects, btn)
-            end
-            
+
             btn.MouseButton1Click:Connect(function()
                 Engine.Modules.AudioFX:Click()
                 for _, p in pairs(pages) do p.Visible = false end
-                for _, b in pairs(tabButtons) do b.TextColor3 = Color3.fromRGB(180, 195, 215) end
+                for i, b in pairs(tabButtons) do
+                    b.TextColor3 = Color3.fromRGB(140, 158, 190)
+                    b.BackgroundTransparency = 1
+                    -- xóa gradient cũ
+                    local g = b:FindFirstChildOfClass("UIGradient")
+                    if g then g:Destroy() end
+                    if tabPills[i] then tabPills[i].Visible = false end
+                end
                 page.Visible = true
-                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                table.insert(self.ChromaObjects, btn)
+                btn.TextColor3 = Color3.fromRGB(240, 248, 255)
+                btn.BackgroundTransparency = 0.82
+                pill.Visible = true
+                -- thêm gradient active
+                local g2 = Instance.new("UIGradient")
+                g2.Color = ColorSequence.new({
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 200, 255)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 0, 255)),
+                })
+                g2.Transparency = NumberSequence.new({
+                    NumberSequenceKeypoint.new(0, 0.85),
+                    NumberSequenceKeypoint.new(1, 0.95),
+                })
+                g2.Rotation = 90
+                g2.Parent = btn
+                if not pill:FindFirstChild("_chroma") then
+                    local m = Instance.new("StringValue")
+                    m.Name = "_chroma"
+                    m.Parent = pill
+                    table.insert(self.ChromaObjects, pill)
+                end
             end)
-            
+
             table.insert(pages, page)
             table.insert(tabButtons, btn)
+            table.insert(tabPills, pill)
             return page
         end
+
+
         
         local pageESP = createTab(dict.ESP_TAB, true)
         local pageCombat = createTab(dict.COMBAT_TAB, false)
@@ -3434,11 +3561,17 @@ Engine.Modules.UIController = {
                     local row = Instance.new("TextButton")
                     row.Size = UDim2.new(1, 0, 0, 34)
                     row.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                    row.BackgroundTransparency = 0.95
+                    row.BackgroundTransparency = 0.93
                     row.Text = ""
                     row.ZIndex = 5
                     row.Parent = scrollList
-                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
+                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+                    local rowStroke = Instance.new("UIStroke")
+                    rowStroke.Thickness = 1
+                    rowStroke.Color = Color3.fromRGB(255, 255, 255)
+                    rowStroke.Transparency = 0.92
+                    rowStroke.Parent = row
 
                     local cmdTag = Instance.new("TextLabel")
                     cmdTag.Size = UDim2.new(0.44, -6, 1, 0)
@@ -3468,10 +3601,10 @@ Engine.Modules.UIController = {
 
                     -- Hover highlight
                     row.MouseEnter:Connect(function()
-                        row.BackgroundTransparency = 0.85
+                        row.BackgroundTransparency = 0.82
                     end)
                     row.MouseLeave:Connect(function()
-                        row.BackgroundTransparency = 0.95
+                        row.BackgroundTransparency = 0.93
                     end)
 
                     -- Nhấn vào → tự điền lệnh vào ô input
@@ -3488,19 +3621,26 @@ Engine.Modules.UIController = {
     
     CreateToggle = function(self, parent, text, configKey, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 44)
-        frame.BackgroundColor3 = Color3.fromRGB(18, 24, 40)
-        frame.BackgroundTransparency = 0.3
+        frame.Size = UDim2.new(1, -10, 0, 46)
+        frame.BackgroundColor3 = Color3.fromRGB(20, 32, 58)
+        frame.BackgroundTransparency = 0.45
         frame.ZIndex = 3
         frame.Parent = parent
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
+
+        local cardStroke = Instance.new("UIStroke")
+        cardStroke.Thickness = 1
+        cardStroke.Color = Color3.fromRGB(0, 240, 255)
+        cardStroke.Transparency = 0.6
+        cardStroke.Parent = frame
+        table.insert(self.ChromaObjects, cardStroke)
         
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, -65, 1, 0)
-        label.Position = UDim2.new(0, 12, 0, 0)
+        label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = text
-        label.TextColor3 = Color3.fromRGB(230, 240, 255)
+        label.TextColor3 = Color3.fromRGB(240, 248, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -3511,8 +3651,8 @@ Engine.Modules.UIController = {
         toggleBtn.Name = Engine.Modules.ConfigManager.Settings[configKey] and "ToggledBG" or "OffBG"
         toggleBtn.Size = UDim2.new(0, 44, 0, 22)
         toggleBtn.Position = UDim2.new(1, -54, 0.5, -11)
-        toggleBtn.BackgroundColor3 = Engine.Modules.ConfigManager.Settings[configKey] and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(45, 52, 68)
-        toggleBtn.BackgroundTransparency = Engine.Modules.ConfigManager.Settings[configKey] and 0.2 or 0.4
+        toggleBtn.BackgroundColor3 = Engine.Modules.ConfigManager.Settings[configKey] and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(35, 50, 78)
+        toggleBtn.BackgroundTransparency = Engine.Modules.ConfigManager.Settings[configKey] and 0.1 or 0.4
         toggleBtn.Text = ""
         toggleBtn.ZIndex = 4
         toggleBtn.Parent = frame
@@ -3531,7 +3671,7 @@ Engine.Modules.UIController = {
         local function updateVisual(newState)
             toggleBtn.Name = newState and "ToggledBG" or "OffBG"
             local goalPos = newState and UDim2.new(1, -20, 0, 2) or UDim2.new(0, 2, 0, 2)
-            local goalColor = newState and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(45, 52, 68)
+            local goalColor = newState and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(35, 50, 78)
             
             Engine.Services.TweenService:Create(circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos}):Play()
             Engine.Services.TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = goalColor}):Play()
@@ -3555,20 +3695,27 @@ Engine.Modules.UIController = {
     
     CreateSlider = function(self, parent, text, min, max, configKey)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 60)
-        frame.BackgroundColor3 = Color3.fromRGB(18, 24, 40)
-        frame.BackgroundTransparency = 0.3
+        frame.Size = UDim2.new(1, -10, 0, 62)
+        frame.BackgroundColor3 = Color3.fromRGB(20, 32, 58)
+        frame.BackgroundTransparency = 0.45
         frame.ZIndex = 3
         frame.Parent = parent
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
+
+        local cardStroke = Instance.new("UIStroke")
+        cardStroke.Thickness = 1
+        cardStroke.Color = Color3.fromRGB(0, 240, 255)
+        cardStroke.Transparency = 0.6
+        cardStroke.Parent = frame
+        table.insert(self.ChromaObjects, cardStroke)
         
         local default = Engine.Modules.ConfigManager.Settings[configKey]
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -12, 0, 24)
-        label.Position = UDim2.new(0, 12, 0, 4)
+        label.Size = UDim2.new(1, -14, 0, 24)
+        label.Position = UDim2.new(0, 14, 0, 5)
         label.BackgroundTransparency = 1
         label.Text = text .. ": " .. string.format("%.2f", default)
-        label.TextColor3 = Color3.fromRGB(230, 240, 255)
+        label.TextColor3 = Color3.fromRGB(240, 248, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -3576,10 +3723,10 @@ Engine.Modules.UIController = {
         label.Parent = frame
         
         local bar = Instance.new("Frame")
-        bar.Size = UDim2.new(1, -24, 0, 8)
-        bar.Position = UDim2.new(0, 12, 0, 38)
-        bar.BackgroundColor3 = Color3.fromRGB(35, 45, 68)
-        bar.BackgroundTransparency = 0.2
+        bar.Size = UDim2.new(1, -28, 0, 8)
+        bar.Position = UDim2.new(0, 14, 0, 39)
+        bar.BackgroundColor3 = Color3.fromRGB(28, 42, 70)
+        bar.BackgroundTransparency = 0.3
         bar.ZIndex = 4
         bar.Parent = frame
         Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
@@ -3587,7 +3734,7 @@ Engine.Modules.UIController = {
         local fill = Instance.new("Frame")
         fill.Name = "ToggledBG"
         fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        fill.BackgroundColor3 = Color3.fromRGB(0, 220, 255)
         fill.ZIndex = 4
         fill.Parent = bar
         Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
