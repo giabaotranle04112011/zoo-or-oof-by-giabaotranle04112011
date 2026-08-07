@@ -159,10 +159,8 @@ Engine.Modules.ConfigManager = {
         -- Movement & Character
         Fly = false, FlySpeed = 120, Speed = false, SpeedValue = 20, Noclip = false, InfJump = false, AntiAFK = true,
         -- Automation & Farm
-        AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 85, SmartMovement = true, AntiStuck = true,
+        AutoFarm = false, AutoFarmHeight = 45, AutoFarmSpeed = 85, SmartMovement = true, AntiStuck = true,
         SmartWallBypass = true, AutoMoney = true,
-        -- Role Override: "AUTO" = tự nhận diện, "ZOOKEEPER" = ép Zoo, "OOF" = ép OOF
-        ForceRole = "AUTO",
         -- System & Visuals
         ShowHUD = true, ShowRadar = true, FPSBooster = true, AudioFX = true
     },
@@ -510,7 +508,7 @@ Engine.Modules.LoadingScreen = {
 -- [5] KEY SYSTEM MODULE V10.5
 -- ==========================================
 Engine.Modules.KeySystem = {
-    KeyURL = "https://getkeyfree24h.netlify.app/",
+    KeyURL = "https://discord.gg/6Nfc7jGKP",
     RepoOwner = "giabaotranle04112011",
     RepoName = "getkey",
     FilePath = "keys.json",
@@ -746,7 +744,7 @@ Engine.Modules.KeySystem = {
         desc.Size = UDim2.new(1, -40, 0, 32)
         desc.Position = UDim2.new(0, 20, 0, 46)
         desc.BackgroundTransparency = 1
-        desc.Text = "Truy cập link bên dưới để lấy Key miễn phí 24h!"
+        desc.Text = "Hãy vô Server Discord: https://discord.gg/6Nfc7jGKP để lấy Key của Bot dùng lệnh /help"
         desc.Font = Enum.Font.GothamMedium
         desc.TextSize = 10
         desc.TextColor3 = Color3.fromRGB(180, 195, 215)
@@ -975,104 +973,75 @@ local function CheckIsProtectedOrNeutral(plr)
 end
 
 local function DeterminePlayerRole(plr)
-    -- FORCE ROLE OVERRIDE: Nếu người dùng ép vai trò thủ công và đây là LocalPlayer
-    local forceRole = Engine.Modules and Engine.Modules.ConfigManager and Engine.Modules.ConfigManager.Settings and Engine.Modules.ConfigManager.Settings.ForceRole
-    if forceRole and forceRole ~= "AUTO" and plr == LocalPlayer then
-        return forceRole
-    end
-    
     if not plr then return "NEUTRAL" end
     
-    local char = nil
-    if typeof(plr) == "Instance" then
-        if plr:IsA("Player") then
-            char = plr.Character
-        elseif plr:IsA("Model") then
-            char = plr
-            local p = Engine.Services.Players:GetPlayerFromCharacter(plr)
-            if p then plr = p end
+    if typeof(plr) == "Instance" and plr:IsA("Model") then
+        local p = Engine.Services.Players:GetPlayerFromCharacter(plr)
+        if p then plr = p else return "OOF" end
+    end
+    
+    if typeof(plr) ~= "Instance" or not plr:IsA("Player") then
+        return "OOF"
+    end
+    
+    if CheckIsProtectedOrNeutral(plr) then
+        if plr ~= LocalPlayer then return "NEUTRAL" end
+    end
+    
+    local char = plr.Character
+    local isZoo, isOof = false, false
+    
+    -- 1. Kiểm tra Tên Team
+    if plr.Team then
+        local tName = plr.Team.Name:lower()
+        if tName:find("zoo") or tName:find("keeper") or tName:find("human") or tName:find("guard") or tName:find("hunter") then
+            isZoo = true
+        elseif tName:find("oof") or tName:find("animal") or tName:find("beast") then
+            isOof = true
         end
     end
     
-    if not char then return "NEUTRAL" end
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
-    if not hum or hum.Health <= 0 or not hrp then return "NEUTRAL" end
-
-    -- 1. Kiểm tra ForceField (Người mới hồi sinh / Người thường trong vùng an toàn)
-    for _, child in ipairs(char:GetChildren()) do
-        if child:IsA("ForceField") or child.Name:lower():find("shield") or child.Name:lower():find("protection") then
-            return "NEUTRAL"
-        end
-    end
-
-    local isZoo, isOof = false, false
-
-    -- 2. Kiểm tra Team của Player
-    if typeof(plr) == "Instance" and plr:IsA("Player") and plr.Team then
-        local tName = plr.Team.Name:lower()
-        if tName:find("zoo") or tName:find("keeper") or tName:find("guard") or tName:find("hunter") then
-            isZoo = true
-        elseif tName:find("oof") or tName:find("animal") or tName:find("beast") or tName:find("infected") or tName:find("monster") then
-            isOof = true
-        elseif tName:find("neutral") or tName:find("civilian") or tName:find("lobby") or tName:find("spectator") or tName:find("guest") or tName:find("human") then
-            return "NEUTRAL"
-        end
-    end
-
-    -- 3. Kiểm tra Attributes trên Player hoặc Character Model
+    -- 2. Kiểm tra Attributes
     if not isZoo and not isOof then
-        local attrRole = (typeof(plr) == "Instance" and plr:IsA("Player") and (plr:GetAttribute("Role") or plr:GetAttribute("Team"))) or char:GetAttribute("Role") or char:GetAttribute("Team")
+        local attrRole = plr:GetAttribute("Role") or plr:GetAttribute("Team")
         if attrRole then
             local rStr = tostring(attrRole):lower()
             if rStr:find("zoo") or rStr:find("keeper") then isZoo = true
-            elseif rStr:find("oof") or rStr:find("animal") or rStr:find("beast") then isOof = true
-            elseif rStr:find("neutral") or rStr:find("civilian") or rStr:find("human") then return "NEUTRAL" end
+            elseif rStr:find("oof") or rStr:find("animal") then isOof = true end
         end
     end
-
-    -- 4. Kiểm tra Tên Model / Tên Nhân vật
-    if not isZoo and not isOof then
-        local mName = char.Name:lower()
-        if mName:find("oof") or mName:find("animal") or mName:find("beast") or mName:find("bear") or mName:find("wolf") or mName:find("lion") or mName:find("tiger") or mName:find("dino") or mName:find("cat") or mName:find("dog") or mName:find("gorilla") or mName:find("monster") or mName:find("zombie") then
-            isOof = true
-        end
-    end
-
-    -- 5. Kiểm tra Vũ khí trên tay & Ba lô
-    if not isZoo and not isOof then
+    
+    -- 3. Kiểm tra Vũ khí trên tay (Equipped Tools) & Ba lô (Backpack)
+    if char then
         for _, tool in ipairs(char:GetChildren()) do
             if tool:IsA("Tool") then
                 local n = tool.Name:lower()
                 if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") or n:find("laser") then
                     isZoo = true
-                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") or n:find("roar") then
+                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") then
                     isOof = true
                 end
             end
         end
-        
-        if typeof(plr) == "Instance" and plr:IsA("Player") then
-            local backpack = plr:FindFirstChild("Backpack")
-            if backpack then
-                for _, tool in ipairs(backpack:GetChildren()) do
-                    if tool:IsA("Tool") then
-                        local n = tool.Name:lower()
-                        if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") then
-                            isZoo = true
-                        elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") or n:find("roar") then
-                            isOof = true
-                        end
-                    end
+    end
+    
+    local backpack = plr:FindFirstChild("Backpack")
+    if backpack then
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") then
+                local n = tool.Name:lower()
+                if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") then
+                    isZoo = true
+                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") then
+                    isOof = true
                 end
             end
         end
     end
-
+    
     if isZoo then return "ZOOKEEPER" end
     if isOof then return "OOF" end
-
-    -- 6. KHÔNG PHẢI ZOO VÀ KHÔNG PHẢI OOF -> CHÍNH LÀ NGƯỜI THƯỜNG (NEUTRAL) -> ĐỨNG YÊN
+    
     return "NEUTRAL"
 end
 
@@ -1092,8 +1061,9 @@ local function FastScanPlayers()
                     table.insert(Engine.Cache.Oofs, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "OOF"})
                 elseif role == "ZOOKEEPER" then
                     table.insert(Engine.Cache.Zookeepers, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "ZOOKEEPER"})
+                else
+                    table.insert(Engine.Cache.Oofs, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "NEUTRAL"})
                 end
-                -- CHÚ Ý: KHÔNG bao giờ cho người thường (NEUTRAL) vào danh sách OOF!
             end
         end
     end
@@ -1111,9 +1081,9 @@ local function FastScanPlayers()
     end
 end
 
--- BẬT SCANNER SIÊU TỐC QUÉT MAP 0.1 GIÂY / LẦN DỰA THEO THỜI GIAN THỰC
+-- BẬT SCANNER TỰ ĐỘNG CHẠY LIÊN TỤC ĐỂ ESP HOẠT ĐỘNG NGAY LẬP TỨC
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.2) do
         pcall(FastScanPlayers)
     end
 end)
@@ -1134,74 +1104,32 @@ local function SlowScanPrompts()
 end
 
 task.spawn(function()
-    while task.wait(3) do
+    while task.wait(4) do
         SlowScanPrompts()
     end
 end)
 
-local function IsTargetValid(target)
-    if not target or not target.Parent then return false end
-    if not target:IsDescendantOf(workspace) then return false end
-    
-    local charModel = target.Parent
-    local hum = charModel:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    
-    local plr = Engine.Services.Players:GetPlayerFromCharacter(charModel)
-    if plr and CheckIsProtectedOrNeutral(plr) then return false end
-    
-    local myRole = DeterminePlayerRole(LocalPlayer)
-    local targetRole = DeterminePlayerRole(plr or charModel)
-    
-    -- QUY TẮC THEO 3 VAI TRÒ:
-    -- 1. Người thường (NEUTRAL) không bao giờ là mục tiêu
-    if targetRole == "NEUTRAL" then return false end
-    
-    -- 2. Nếu mình là ZOOKEEPER -> farm OOF
-    if myRole == "ZOOKEEPER" and targetRole ~= "OOF" then return false end
-    
-    -- 3. Nếu mình là OOF -> farm ZOOKEEPER
-    if myRole == "OOF" and targetRole ~= "ZOOKEEPER" then return false end
-    
-    -- 4. Nếu mình là NEUTRAL -> không lọc (farm tất cả OOF+ZOO)
-    -- (Không return false ở đây để NEUTRAL vẫn farm được)
-    
-    return true
-end
-
 local function GetBestTarget()
-    FastScanPlayers()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
     local myPos = hrp.Position
     
     local myRole = DeterminePlayerRole(LocalPlayer)
-    Engine.State.CurrentRole = myRole
+    -- NẾU LÀ NEUTRAL (NGƯỜI THƯỜNG / DÂN THƯỜNG): KHÔNG CHỌN MỤC TIÊU (ĐỨNG YÊN 1 CHỖ!)
+    if myRole == "NEUTRAL" then
+        Engine.State.TargetModel = nil
+        return nil
+    end
     
     local bestTargetRoot = nil
     local bestModel = nil
     local minScore = math.huge
     
-    -- PHÂN LOẠI MỤC TIÊU THEO 3 THÀNH PHẦN (ZOO, OOF, NGƯỜI THƯỜNG):
-    -- ZOO (Zookeeper) → farm OOF
-    -- OOF → farm ZOO
-    -- NEUTRAL → mặc định farm OOF (giống như ZOOKEEPER)
-    local pool = {}
-    if myRole == "ZOOKEEPER" then
-        pool = Engine.Cache.Oofs
-    elseif myRole == "OOF" then
-        pool = Engine.Cache.Zookeepers
-    else
-        -- NEUTRAL: dùng OOF pool làm mặc định để không bị đứng yên
-        pool = Engine.Cache.Oofs
-        if #pool == 0 then
-            pool = Engine.Cache.Zookeepers
-        end
-    end
+    local pool = (myRole == "ZOOKEEPER") and Engine.Cache.Oofs or Engine.Cache.Zookeepers
     
     for _, item in ipairs(pool) do
-        if item.Humanoid and item.Humanoid.Health > 0 and item.Root and IsTargetValid(item.Root) then
+        if item.Humanoid and item.Humanoid.Health > 0 and item.Root then
             local dist = (item.Root.Position - myPos).Magnitude
             local hpFactor = (item.Humanoid.Health / item.Humanoid.MaxHealth) * 30
             local score = dist + hpFactor
@@ -1216,6 +1144,18 @@ local function GetBestTarget()
     
     Engine.State.TargetModel = bestModel
     return bestTargetRoot
+end
+
+local function IsTargetValid(target)
+    if not target or not target.Parent then return false end
+    if not target:IsDescendantOf(workspace) then return false end
+    local hum = target.Parent:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    
+    local plr = Engine.Services.Players:GetPlayerFromCharacter(target.Parent)
+    if plr and CheckIsProtectedOrNeutral(plr) then return false end
+    
+    return true
 end
 
 local function CheckLineOfSight(originPos, targetPos, ignoreModel)
@@ -1858,530 +1798,322 @@ Engine.Modules.HunterHUD = {
 }
 
 -- ==========================================
--- [11] COMBAT CONTROLLER — HỆ THỐNG TẤN CÔNG DUY NHẤT
--- Chịu trách nhiệm 100% cho: AutoEquip, AutoAttack, AutoSkill
--- FarmManager CHỈ lo di chuyển, không được gọi attack/click.
+-- [11] STANDALONE AUTO ATTACK ENGINE (CHỈ XẢ ĐẠN/CLICK KHI LÀ ZOOKEEPER HOẶC CÓ SÚNG)
 -- ==========================================
-Engine.Modules.CombatController = {
-    State = {
-        LastAttack = 0,
-        LastSkill  = 0,
-        LastEquip  = 0,
-    },
-    Thread = nil,
-
-    AutoEquip = function(self, char, hum)
-        if not char or not hum or hum.Health <= 0 then return nil end
-        local tool = char:FindFirstChildOfClass("Tool")
-        if tool then return tool end
-        if tick() - self.State.LastEquip < 0.5 then return nil end
-        self.State.LastEquip = tick()
-        local backpack = LocalPlayer:FindFirstChild("Backpack")
-        if backpack then
-            local gTool = backpack:FindFirstChildOfClass("Tool")
-            if gTool then
-                pcall(function() hum:EquipTool(gTool) end)
-                task.wait(0.05)
-                return char:FindFirstChildOfClass("Tool")
-            end
-        end
-        return nil
-    end,
-
-    CanAttack = function(self)
-        local char = LocalPlayer.Character
-        if not char then return false, nil, nil end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hum or hum.Health <= 0 or not hrp then return false, nil, nil end
-        local role = Engine.State.CurrentRole
-        if role == "NEUTRAL" then return false, nil, nil end
-        if not Engine.Modules.ConfigManager.Settings.AutoAttack then return false, nil, nil end
-        local target = Engine.State.CurrentTarget
-        if not target or not IsTargetValid(target) then return false, nil, nil end
-        return true, char, hum
-    end,
-
-    DoAttack = function(self, char, hum)
-        local tool = self:AutoEquip(char, hum)
-        if not tool then
-            TriggerMouseClick()
-            return
-        end
-        pcall(function() tool:Activate() end)
-        TriggerMouseClick()
-    end,
-
-    ZookeeperAttack = function(self, char, hum)
-        if tick() - self.State.LastAttack < 0.1 then return end
-        self.State.LastAttack = tick()
-        self:DoAttack(char, hum)
-        -- ZOOKEEPER không nhấn E
-    end,
-
-    OofAttack = function(self, char, hum)
-        if tick() - self.State.LastAttack < 0.15 then return end
-        self.State.LastAttack = tick()
-        self:DoAttack(char, hum)
-        -- E được gọi riêng ở AutoSkill
-    end,
-
-    -- Auto Skill — timer HOÀN TOÀN độc lập với Attack
-    AutoSkill = function(self, char, hum, role)
-        if not Engine.Modules.ConfigManager.Settings.AutoSkill then return end
-        if role == "OOF" then
-            if tick() - self.State.LastSkill < 0.25 then return end
-            self.State.LastSkill = tick()
-            PressKey(Enum.KeyCode.E)
-        elseif role == "ZOOKEEPER" then
-            if tick() - self.State.LastSkill < 2.5 then return end
-            self.State.LastSkill = tick()
-            PressKey(Enum.KeyCode.Q)
-        end
-        -- NEUTRAL: không nhấn gì cả
-    end,
-
-    Reset = function(self)
-        self.State.LastAttack = 0
-        self.State.LastSkill  = 0
-        self.State.LastEquip  = 0
-        Engine.State.CurrentTarget = nil
-    end,
-
-    Start = function(self)
-        if self.Thread then
-            pcall(function() task.cancel(self.Thread) end)
-            self.Thread = nil
-        end
-        self.Thread = task.spawn(function()
-            while true do
-                task.wait(0.02)
-                pcall(function()
-                    local ok, char, hum = self:CanAttack()
-                    if not ok then return end
-                    local role = Engine.State.CurrentRole
-                    if role == "ZOOKEEPER" then
-                        self:ZookeeperAttack(char, hum)
-                        self:AutoSkill(char, hum, "ZOOKEEPER")
-                    elseif role == "OOF" then
-                        self:OofAttack(char, hum)
-                        self:AutoSkill(char, hum, "OOF")
-                    end
-                    -- NEUTRAL: không làm gì cả
-                end)
-            end
-        end)
-    end,
-
-    Stop = function(self)
-        if self.Thread then
-            pcall(function() task.cancel(self.Thread) end)
-            self.Thread = nil
-        end
-    end
-}
-
--- Khởi chạy CombatController ngay khi load
 task.spawn(function()
-    task.wait(1) -- Chờ Engine boot xong
-    Engine.Modules.CombatController:Start()
-end)
-
--- Reset CombatController khi Respawn
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    task.spawn(function()
-        task.wait(0.5) -- Chờ character load
-        Engine.Modules.CombatController:Reset()
-        Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
-    end)
-end)
-
--- ==========================================
--- [13] FARM ENGINE V11 — STATE MACHINE
--- Farm: TargetManager + MovementController + AntiStuck V2
--- CombatController: AutoEquip + Attack + Skill (chỉ CombatController mới được click)
--- States: IDLE → SCANNING → TARGET_LOCKED → MOVING → IN_RANGE → ATTACKING → TARGET_LOST → RECOVERY
--- ==========================================
-Engine.Modules.FarmManager = {
-    FarmState   = "IDLE",
-    IsRunning   = false,
-    Connections = {},
-
-    Target = { Root=nil, Model=nil, Humanoid=nil, Player=nil, Role=nil, LockTime=0 },
-    Movement = { BodyVelocity=nil, LastPos=Vector3.zero },
-    Stuck = { StuckTime=0, StuckCount=0, LastRecovery=0, RecoveryCooldown=3,
-              OffsetVector=Vector3.zero, MaxStuckCount=4 },
-    LastMoneyTime = 0,
-
-    -- ── TARGET MANAGER ──
-
-    IsTargetValid = function(self)
-        local t = self.Target
-        if not t.Root or not t.Root.Parent then return false end
-        if not t.Root:IsDescendantOf(workspace) then return false end
-        if not t.Humanoid or t.Humanoid.Health <= 0 then return false end
-        local myRole = Engine.State.CurrentRole
-        if myRole == "ZOOKEEPER" and t.Role ~= "OOF" then return false end
-        if myRole == "OOF"       and t.Role ~= "ZOOKEEPER" then return false end
-        return true
-    end,
-
-    ClearTarget = function(self)
-        if self.Target.Root ~= nil then
-            Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
-        end
-        self.Target = { Root=nil, Model=nil, Humanoid=nil, Player=nil, Role=nil, LockTime=0 }
-        Engine.State.CurrentTarget = nil
-        Engine.State.TargetModel   = nil
-    end,
-
-    FindAndLockTarget = function(self)
-        local char = LocalPlayer.Character
-        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return false end
-        local myPos  = hrp.Position
-        local myRole = Engine.State.CurrentRole
-
-        local pool = {}
-        if myRole == "ZOOKEEPER" then
-            pool = Engine.Cache.Oofs
-        elseif myRole == "OOF" then
-            pool = Engine.Cache.Zookeepers
-        else
-            pool = Engine.Cache.Oofs
-            if #pool == 0 then pool = Engine.Cache.Zookeepers end
-        end
-        if #pool == 0 then return false end
-
-        local bestScore, bestItem = math.huge, nil
-        for _, item in ipairs(pool) do
-            if item.Humanoid and item.Humanoid.Health > 0 and item.Root and item.Root.Parent then
-                if item.Player ~= LocalPlayer and item.Model ~= LocalPlayer.Character then
-                    local dist  = (item.Root.Position - myPos).Magnitude
-                    local hpPct = item.Humanoid.Health / math.max(item.Humanoid.MaxHealth, 1)
-                    local score = dist + hpPct * 25
-                    if score < bestScore then bestScore = score; bestItem = item end
-                end
-            end
-        end
-        if not bestItem then return false end
-
-        self.Target.Root     = bestItem.Root
-        self.Target.Model    = bestItem.Model
-        self.Target.Humanoid = bestItem.Humanoid
-        self.Target.Player   = bestItem.Player
-        self.Target.Role     = bestItem.Role or (myRole == "ZOOKEEPER" and "OOF" or "ZOOKEEPER")
-        self.Target.LockTime = tick()
-        Engine.State.CurrentTarget = bestItem.Root
-        Engine.State.TargetModel   = bestItem.Model
-        return true
-    end,
-
-    -- ── MOVEMENT CONTROLLER ──
-
-    SetupBodyVelocity = function(self, hrp)
-        if self.Movement.BodyVelocity then
-            pcall(function() self.Movement.BodyVelocity:Destroy() end)
-            self.Movement.BodyVelocity = nil
-        end
-        local bv = Instance.new("BodyVelocity")
-        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-        bv.Velocity = Vector3.zero
-        bv.Parent   = hrp
-        self.Movement.BodyVelocity = bv
-    end,
-
-    CalcDestination = function(self, myRole, targetRoot, targetModel)
-        local targetPos    = targetRoot.Position
-        local targetCFrame = targetRoot.CFrame
-        local offset       = self.Stuck.OffsetVector
-        if myRole == "ZOOKEEPER" or myRole == "NEUTRAL" then
-            local attackDist = Engine.Modules.ConfigManager.Settings.ZooAttackDistance or 12
-            local basePos    = targetCFrame.Position + (targetCFrame.LookVector * attackDist) + Vector3.new(0, 3, 0)
-            if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
-                if not CheckLineOfSight(basePos, targetPos, targetModel) then
-                    return targetPos + Vector3.new(0, 14, 0) + offset
-                end
-            end
-            return basePos + offset
-        elseif myRole == "OOF" then
-            local farmHeight = Engine.Modules.ConfigManager.Settings.AutoFarmHeight or 700
-            return Vector3.new(targetPos.X, targetPos.Y + farmHeight, targetPos.Z) + offset
-        end
-        return targetPos + Vector3.new(0, 5, 0) + offset
-    end,
-
-    MoveTowards = function(self, hrp, destination)
-        local bv = self.Movement.BodyVelocity
-        if not bv or not bv.Parent then
-            self:SetupBodyVelocity(hrp)
-            bv = self.Movement.BodyVelocity
-        end
-        if not bv then return end
-        local diff  = destination - hrp.Position
-        local dist  = diff.Magnitude
-        local speed = Engine.Modules.ConfigManager.Settings.AutoFarmSpeed or 85
-        if dist > 0.8 then
-            bv.Velocity = diff.Unit * math.min(dist * 6, speed)
-        else
-            bv.Velocity = Vector3.zero
-        end
-    end,
-
-    StopMovement = function(self)
-        if self.Movement.BodyVelocity and self.Movement.BodyVelocity.Parent then
-            self.Movement.BodyVelocity.Velocity = Vector3.zero
-        end
-    end,
-
-    -- ── ANTI-STUCK V2 ──
-
-    UpdateAntiStuck = function(self, hrp, dt)
-        local moved = (hrp.Position - self.Movement.LastPos).Magnitude
-        if moved < 0.3 and Engine.State.CurrentTarget then
-            self.Stuck.StuckTime = self.Stuck.StuckTime + dt
-            if self.Stuck.StuckTime > 1.5 then
-                local now = tick()
-                if now - self.Stuck.LastRecovery > self.Stuck.RecoveryCooldown then
-                    self.Stuck.StuckCount   = self.Stuck.StuckCount + 1
-                    self.Stuck.LastRecovery = now
-                    self.Stuck.StuckTime    = 0
-                    if self.Stuck.StuckCount >= self.Stuck.MaxStuckCount then
-                        self.Stuck.StuckCount   = 0
-                        self.Stuck.OffsetVector = Vector3.zero
-                        self:ClearTarget()
-                        self.FarmState = "TARGET_LOST"
+    while task.wait(0.02) do
+        pcall(function()
+            local autoAttackEnabled = Engine.Modules.ConfigManager.Settings.AutoAttack
+            local autoFarmEnabled = Engine.Modules.ConfigManager.Settings.AutoFarm
+            
+            if autoAttackEnabled or autoFarmEnabled then
+                local role = DeterminePlayerRole(LocalPlayer)
+                -- Auto Attack (Xả đạn súng/chuột trái) chỉ chạy khi là Zookeeper
+                if role == "ZOOKEEPER" then
+                    -- Nếu đang bật AutoFarm, chỉ click/bắn khi có mục tiêu thực sự hợp lệ
+                    if autoFarmEnabled and (not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget)) then
                         return
                     end
-                    local sc = self.Stuck.StuckCount
-                    if sc == 1 then
-                        self.Stuck.OffsetVector = Vector3.new(math.random(-10,10), 8, math.random(-10,10))
-                    elseif sc == 2 then
-                        self.Stuck.OffsetVector = Vector3.new(math.random(-20,20), 15, math.random(-20,20))
-                    elseif sc == 3 then
-                        self.Stuck.OffsetVector = Vector3.new(0, 25, 0)
-                    end
-                    self.FarmState = "RECOVERY"
-                end
-            end
-        else
-            self.Stuck.StuckTime = 0
-            if self.Stuck.StuckCount > 0 and moved > 2 then
-                self.Stuck.StuckCount   = 0
-                self.Stuck.OffsetVector = self.Stuck.OffsetVector:Lerp(Vector3.zero, 0.1)
-            end
-        end
-        self.Movement.LastPos = hrp.Position
-    end,
 
-    -- ── STATE MACHINE HEARTBEAT ──
-
-    FarmHeartbeat = function(self, dt)
-        if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
-        if self.FarmState == "IDLE" then return end
-
-        local char = LocalPlayer.Character
-        local hum  = char and char:FindFirstChildOfClass("Humanoid")
-        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-        if not char or not hrp or not hum or hum.Health <= 0 then return end
-
-        -- Update role
-        local forceRole = Engine.Modules.ConfigManager.Settings.ForceRole
-        Engine.State.CurrentRole = (forceRole and forceRole ~= "AUTO")
-            and forceRole or DeterminePlayerRole(LocalPlayer)
-        local myRole = Engine.State.CurrentRole
-
-        -- PlatformStand + NoCollide
-        pcall(function() hum.PlatformStand = true end)
-        for _, p in ipairs(char:GetChildren()) do
-            if p:IsA("BasePart") and p ~= hrp then
-                pcall(function() p.CanCollide = false end)
-            end
-        end
-
-        if Engine.Modules.ConfigManager.Settings.AntiStuck then
-            self:UpdateAntiStuck(hrp, dt)
-        end
-
-        local state = self.FarmState
-
-        if state == "SCANNING" then
-            if self:IsTargetValid() then
-                self.FarmState = "TARGET_LOCKED"
-            else
-                self:ClearTarget()
-                if self:FindAndLockTarget() then
-                    self.FarmState = "TARGET_LOCKED"
-                    self.Stuck.StuckCount   = 0
-                    self.Stuck.OffsetVector = Vector3.zero
-                else
-                    self:StopMovement()
-                end
-            end
-
-        elseif state == "TARGET_LOCKED" or state == "MOVING"
-            or state == "IN_RANGE"    or state == "ATTACKING" then
-            if not self:IsTargetValid() then
-                self:ClearTarget()
-                self.FarmState = "TARGET_LOST"
-                self:StopMovement()
-                return
-            end
-
-            local targetRoot  = self.Target.Root
-            local targetModel = self.Target.Model
-            local targetPos   = targetRoot.Position
-            local destination = self:CalcDestination(myRole, targetRoot, targetModel)
-            local distToDest  = (destination - hrp.Position).Magnitude
-            local currentPos  = hrp.Position
-
-            self:MoveTowards(hrp, destination)
-
-            if distToDest > 3 then
-                pcall(function()
-                    hrp.CFrame = CFrame.new(currentPos, Vector3.new(targetPos.X, currentPos.Y, targetPos.Z))
-                end)
-            end
-
-            pcall(function()
-                Camera.CFrame = Camera.CFrame:Lerp(
-                    CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.2
-                )
-            end)
-
-            if distToDest <= 2 then
-                self.FarmState = "IN_RANGE"
-            elseif distToDest <= 100 then
-                self.FarmState = "ATTACKING"
-            else
-                self.FarmState = "MOVING"
-            end
-
-        elseif state == "TARGET_LOST" then
-            self:StopMovement()
-            self.FarmState = "SCANNING"
-
-        elseif state == "RECOVERY" then
-            if self:IsTargetValid() then
-                local dest = self:CalcDestination(myRole, self.Target.Root, self.Target.Model)
-                self:MoveTowards(hrp, dest)
-                if tick() - self.Stuck.LastRecovery > 2 then
-                    self.FarmState = "MOVING"
-                end
-            else
-                self.FarmState = "TARGET_LOST"
-            end
-        end
-
-        -- Auto Money (ProximityPrompt)
-        if myRole == "ZOOKEEPER" and Engine.Modules.ConfigManager.Settings.AutoMoney
-            and tick() - self.LastMoneyTime > 1.5 then
-            self.LastMoneyTime = tick()
-            for _, item in ipairs(Engine.Cache.Prompts) do
-                if fireproximityprompt and item.Prompt and item.Prompt.Parent then
-                    pcall(function() fireproximityprompt(item.Prompt) end)
-                    break
-                end
-            end
-        end
-    end,
-
-    -- ── SCAN THREAD ──
-
-    RunScanThread = function(self)
-        return task.spawn(function()
-            while self.IsRunning do
-                pcall(function()
-                    FastScanPlayers()
-                    if self.FarmState == "SCANNING" or self.FarmState == "TARGET_LOST" then
-                        if self:FindAndLockTarget() and self:IsTargetValid() then
-                            self.FarmState = "TARGET_LOCKED"
+                    local char = LocalPlayer.Character
+                    if char then
+                        local tool = char:FindFirstChildOfClass("Tool")
+                        if not tool then
+                            local backpack = LocalPlayer:FindFirstChild("Backpack")
+                            if backpack then
+                                local gTool = backpack:FindFirstChildOfClass("Tool")
+                                local hum = char:FindFirstChildOfClass("Humanoid")
+                                if gTool and hum then
+                                    hum:EquipTool(gTool)
+                                    tool = gTool
+                                end
+                            end
+                        end
+                        
+                        if tool then
+                            -- 1. Kích hoạt Tool trực tiếp
+                            tool:Activate()
+                            
+                            -- 2. Gửi RemoteEvent bắn súng bên trong Tool nếu có
+                            for _, v in ipairs(tool:GetDescendants()) do
+                                if v:IsA("RemoteEvent") then
+                                    local n = v.Name:lower()
+                                    if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") then
+                                        if Engine.State.CurrentTarget then
+                                            v:FireServer(Engine.State.CurrentTarget.Position)
+                                            v:FireServer(Engine.State.CurrentTarget)
+                                        else
+                                            v:FireServer()
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            -- 3. Mô phỏng Click Chuột Trái thật liên tục
+                            TriggerMouseClick()
                         end
                     end
-                end)
-                task.wait(self.FarmState == "SCANNING" and 0.1 or 0.35)
+                end
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- [12] STANDALONE AUTO SKILL ENGINE (CHẨN ĐOÁN CHÍNH XÁC: ZOO CHỈ NHẤN Q, OOF CHỈ NHẤN E)
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.3) do
+        pcall(function()
+            if Engine.Modules.ConfigManager.Settings.AutoSkill then
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChildOfClass("Humanoid") then
+                    local role = DeterminePlayerRole(LocalPlayer)
+                    Engine.State.CurrentRole = role
+
+                    -- CHỈ NHẤN PHÍM TƯƠNG ỨNG VỚI VAI TRÒ (STRICT ROLE LOCKing):
+                    if role == "ZOOKEEPER" then
+                        -- Khi là Zookeeper: CHỈ BẤM PHÍM Q
+                        PressKey(Enum.KeyCode.Q)
+                    elseif role == "OOF" then
+                        -- Khi là OOF: CHỈ BẤM PHÍM E
+                        PressKey(Enum.KeyCode.E)
+                    else
+                        -- Trường hợp Neutral: Kiểm tra tên vũ khí đang cầm để quyết định phím bấm
+                        local tool = char:FindFirstChildOfClass("Tool") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChildOfClass("Tool"))
+                        if tool then
+                            local tName = tool.Name:lower()
+                            if tName:find("oof") or tName:find("claw") or tName:find("e") then
+                                PressKey(Enum.KeyCode.E)
+                            else
+                                PressKey(Enum.KeyCode.Q)
+                            end
+                        else
+                            PressKey(Enum.KeyCode.Q)
+                        end
+                    end
+                    
+                    -- Kích hoạt thêm RemoteEvent kỹ năng riêng của nhân vật
+                    for _, v in ipairs(char:GetDescendants()) do
+                        if v:IsA("RemoteEvent") then
+                            local n = v.Name:lower()
+                            if role == "ZOOKEEPER" and (n:find("q") or n:find("zoo") or n:find("skill")) then
+                                v:FireServer()
+                            elseif role == "OOF" and (n:find("e") or n:find("oof") or n:find("ability")) then
+                                v:FireServer()
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- [13] FARM ENGINE 2.0
+-- ==========================================
+Engine.Modules.FarmManager = {
+    StuckTracker = { LastPos = Vector3.zero, StuckTime = 0, OffsetVector = Vector3.zero },
+    LastActions = { Attack = 0, Skill = 0, Prompt = 0, Weapon = 0 },
+    
+    AutoEquipBestTool = function(self)
+        if not Engine.Modules.ConfigManager.Settings.AutoWeapon then return end
+        if tick() - self.LastActions.Weapon < 1.0 then return end
+        self.LastActions.Weapon = tick()
+
+        pcall(function()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not hum then return end
+
+            local currentTool = char:FindFirstChildOfClass("Tool")
+            if not currentTool then
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if backpack then
+                    local tools = backpack:GetChildren()
+                    if #tools > 0 then
+                        hum:EquipTool(tools[1])
+                    end
+                end
             end
         end)
     end,
-
-    -- ── START ──
 
     Start = function(self)
         self:Stop()
         local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local hrp  = char:FindFirstChild("HumanoidRootPart")
-            or char:WaitForChild("HumanoidRootPart", 5)
-        if not hrp then
-            Engine.Modules.NotificationManager:Notify("❌ Farm", "Không tìm thấy HRP!", 3)
-            return
-        end
-        self.IsRunning            = true
-        self.FarmState            = "SCANNING"
-        self.Movement.LastPos     = hrp.Position
-        self:SetupBodyVelocity(hrp)
-
-        table.insert(self.Connections, function()
-            if self.Movement.BodyVelocity then
-                pcall(function() self.Movement.BodyVelocity:Destroy() end)
-                self.Movement.BodyVelocity = nil
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
+        if not hrp then return end
+        self.StuckTracker.LastPos = hrp.Position
+        
+        local farmBV = Instance.new("BodyVelocity")
+        farmBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        farmBV.Velocity = Vector3.zero
+        farmBV.Parent = hrp
+        table.insert(Engine.State.FarmConnections, function() if farmBV then farmBV:Destroy() end end)
+        
+        local scanThread = task.spawn(function()
+            while Engine.Modules.ConfigManager.Settings.AutoFarm do
+                Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
+                self:AutoEquipBestTool()
+                
+                if not IsTargetValid(Engine.State.CurrentTarget) then
+                    if Engine.State.CurrentTarget ~= nil then
+                        Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
+                    end
+                    Engine.State.CurrentTarget = GetBestTarget()
+                end
+                task.wait(0.1)
             end
         end)
-        table.insert(self.Connections, self:RunScanThread())
-        table.insert(self.Connections,
-            Engine.Services.RunService.Heartbeat:Connect(function(dt)
-                pcall(function() self:FarmHeartbeat(dt) end)
-            end)
-        )
-        table.insert(self.Connections,
-            LocalPlayer.CharacterAdded:Connect(function()
-                task.spawn(function()
-                    task.wait(0.8)
-                    if Engine.Modules.ConfigManager.Settings.AutoFarm then
-                        self:Start()
+        table.insert(Engine.State.FarmConnections, scanThread)
+        
+        local actionThread = task.spawn(function()
+            while Engine.Modules.ConfigManager.Settings.AutoFarm do
+                if Engine.Modules.ConfigManager.Settings.AutoMoney and tick() - self.LastActions.Prompt > 1.2 then
+                    self.LastActions.Prompt = tick()
+                    for _, item in ipairs(Engine.Cache.Prompts) do
+                        if fireproximityprompt and item.Prompt and item.Prompt.Parent then
+                            pcall(function() fireproximityprompt(item.Prompt) end)
+                            break
+                        end
                     end
-                end)
-            end)
-        )
-        local roleLabel = Engine.Modules.ConfigManager.Settings.ForceRole == "OOF" and "🔴 OOF"
-            or Engine.Modules.ConfigManager.Settings.ForceRole == "ZOOKEEPER" and "🔵 Zoo"
-            or "⚡ Auto"
-        Engine.Modules.NotificationManager:Notify("🤖 Farm V11", "State Machine Active! Role: " .. roleLabel, 3)
-    end,
-
-    -- ── STOP ──
-
-    Stop = function(self)
-        self.IsRunning = false
-        self.FarmState = "IDLE"
-        for _, conn in ipairs(self.Connections) do
-            if typeof(conn) == "RBXScriptConnection" then
-                pcall(function() conn:Disconnect() end)
-            elseif typeof(conn) == "thread" then
-                pcall(function() task.cancel(conn) end)
-            elseif typeof(conn) == "function" then
-                pcall(conn)
+                end
+                task.wait(0.12)
             end
-        end
-        table.clear(self.Connections)
-        if self.Movement.BodyVelocity then
-            pcall(function() self.Movement.BodyVelocity:Destroy() end)
-            self.Movement.BodyVelocity = nil
-        end
-        self:ClearTarget()
-        self.Stuck.StuckTime    = 0
-        self.Stuck.StuckCount   = 0
-        self.Stuck.OffsetVector = Vector3.zero
-        self.Stuck.LastRecovery = 0
-        local char = LocalPlayer.Character
-        local hum  = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then pcall(function() hum.PlatformStand = false end) end
-        if char then
-            for _, p in ipairs(char:GetChildren()) do
-                if p:IsA("BasePart") then
-                    pcall(function() p.CanCollide = true end)
+        end)
+        table.insert(Engine.State.FarmConnections, actionThread)
+
+        -- =============================================
+        -- FARM AUTO SHOOT: Tự động bắn/nhấp chuột trái
+        -- CHỈ KHI LÀ ZOOKEEPER VÀ CÓ MỤC TIÊU HỢP LỆ
+        -- =============================================
+        local shootThread = task.spawn(function()
+            while Engine.Modules.ConfigManager.Settings.AutoFarm do
+                task.wait(0.02) -- 50 lần bắn / giây
+                pcall(function()
+                    local myRole = DeterminePlayerRole(LocalPlayer)
+                    if myRole ~= "ZOOKEEPER" then return end
+                    if not Engine.State.CurrentTarget or not IsTargetValid(Engine.State.CurrentTarget) then return end
+
+                    local char = LocalPlayer.Character
+                    if not char then return end
+
+                    local tool = char:FindFirstChildOfClass("Tool")
+                    if not tool then return end
+
+                    -- 1. Kích hoạt Tool (Activate = nhả đạn)
+                    tool:Activate()
+
+                    -- 2. Bắn qua RemoteEvent bên trong Tool (nếu game hỗ trợ)
+                    for _, v in ipairs(tool:GetDescendants()) do
+                        if v:IsA("RemoteEvent") then
+                            local n = v.Name:lower()
+                            if n:find("fire") or n:find("shoot") or n:find("attack") or n:find("use") or n:find("action") then
+                                if Engine.State.CurrentTarget then
+                                    pcall(function() v:FireServer(Engine.State.CurrentTarget.Position) end)
+                                    pcall(function() v:FireServer(Engine.State.CurrentTarget) end)
+                                else
+                                    pcall(function() v:FireServer() end)
+                                end
+                            end
+                        end
+                    end
+
+                    -- 3. Mô phỏng nhấp chuột trái thật (siêu nhanh)
+                    TriggerMouseClick()
+                end)
+            end
+        end)
+        table.insert(Engine.State.FarmConnections, shootThread)
+        
+        local farmLoop = Engine.Services.RunService.Heartbeat:Connect(function(dt)
+            if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
+            local myRole = DeterminePlayerRole(LocalPlayer)
+            if myRole == "NEUTRAL" then return end -- NẾU LÀ NGƯỜI THƯỜNG: ĐỨNG YÊN TẠI CHỖ, KHÔNG TỰ BAY HAY BAY ĐẾN QUÁI!
+
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            
+            if hum then hum.PlatformStand = true end
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") then part.CanCollide = false end
+            end
+            
+            if Engine.Modules.ConfigManager.Settings.AntiStuck then
+                if (hrp.Position - self.StuckTracker.LastPos).Magnitude < 0.4 then
+                    self.StuckTracker.StuckTime = self.StuckTracker.StuckTime + dt
+                    if self.StuckTracker.StuckTime > 1.5 then
+                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-15, 15), 12, math.random(-15, 15))
+                        self.StuckTracker.StuckTime = 0
+                    end
+                else
+                    self.StuckTracker.StuckTime = 0
+                    self.StuckTracker.LastPos = hrp.Position
+                    self.StuckTracker.OffsetVector = self.StuckTracker.OffsetVector:Lerp(Vector3.zero, 0.08)
                 end
             end
+            
+            if Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
+                local targetPos = Engine.State.CurrentTarget.Position
+                local destination
+                
+                if Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL" then
+                    local targetCFrame = Engine.State.CurrentTarget.CFrame
+                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 11) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
+                    
+                    if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
+                        local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
+                        if not hasLOS then
+                            destination = targetPos + Vector3.new(0, 15, 0) + self.StuckTracker.OffsetVector
+                        else
+                            destination = defaultPos
+                        end
+                    else
+                        destination = defaultPos
+                    end
+                else
+                    destination = Vector3.new(targetPos.X, targetPos.Y + Engine.Modules.ConfigManager.Settings.AutoFarmHeight, targetPos.Z) + self.StuckTracker.OffsetVector
+                end
+                
+                local currentPos = hrp.Position
+                local dist = (destination - currentPos).Magnitude
+                
+                if dist > 0.5 then
+                    local moveDir = (destination - currentPos).Unit
+                    local moveSpeed = Engine.Modules.ConfigManager.Settings.AutoFarmSpeed
+                    local step = moveDir * math.min(dist, moveSpeed * dt)
+                    hrp.CFrame = CFrame.lookAt(currentPos + step, targetPos)
+                else
+                    hrp.CFrame = CFrame.lookAt(currentPos, targetPos)
+                end
+                
+                Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.3)
+            end
+        end)
+        table.insert(Engine.State.FarmConnections, farmLoop)
+        
+        Engine.Modules.NotificationManager:Notify("Cyberpunk Hunter V10.5", "AI Auto Farm 2.0 VIP Active!", 3)
+    end,
+    
+    Stop = function(self)
+        for _, conn in ipairs(Engine.State.FarmConnections) do
+            if typeof(conn) == "RBXScriptConnection" then conn:Disconnect() end
+            if typeof(conn) == "thread" then task.cancel(conn) end
+            if typeof(conn) == "function" then conn() end
         end
+        table.clear(Engine.State.FarmConnections)
+        Engine.State.CurrentTarget = nil
+        
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
     end
 }
 
@@ -2558,87 +2290,44 @@ Engine.Modules.UIController = {
             self.MainFrame.Visible = not self.MainFrame.Visible
         end)
         
-        -- Main Frame — Ultra Frosted White Glass (Transparent White Aesthetic)
+        -- Main Cyberpunk Container Frame
         self.MainFrame = Instance.new("Frame")
-        self.MainFrame.Size = UDim2.new(0, 740, 0, 460)
-        self.MainFrame.Position = UDim2.new(0.5, -370, 0.5, -230)
-        self.MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        self.MainFrame.BackgroundTransparency = 0.72
+        self.MainFrame.Size = UDim2.new(0, 640, 0, 430)
+        self.MainFrame.Position = UDim2.new(0.5, -320, 0.5, -215)
+        self.MainFrame.BackgroundColor3 = Color3.fromRGB(9, 12, 22)
+        self.MainFrame.BackgroundTransparency = 0.2
         self.MainFrame.Active = true
         self.MainFrame.Draggable = true
         self.MainFrame.ClipsDescendants = true
         self.MainFrame.Parent = sg
-        Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 24)
-
-        -- Glass White Stroke Outline
+        Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 20)
+        
         local mainStroke = Instance.new("UIStroke")
-        mainStroke.Thickness = 2
-        mainStroke.Transparency = 0.3
-        mainStroke.Color = Color3.fromRGB(255, 255, 255)
+        mainStroke.Thickness = 2.2
+        mainStroke.Transparency = 0.15
+        mainStroke.Color = Color3.fromRGB(0, 240, 255)
         mainStroke.Parent = self.MainFrame
         table.insert(self.ChromaObjects, mainStroke)
-
-        -- Top glossy light reflection
-        local glassShine = Instance.new("Frame")
-        glassShine.Size = UDim2.new(1, 0, 0, 80)
-        glassShine.Position = UDim2.new(0, 0, 0, 0)
-        glassShine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        glassShine.BorderSizePixel = 0
-        glassShine.ZIndex = 1
-        glassShine.Parent = self.MainFrame
-        Instance.new("UICorner", glassShine).CornerRadius = UDim.new(0, 24)
-
-        local shineGrad = Instance.new("UIGradient")
-        shineGrad.Rotation = 90
-        shineGrad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
-        })
-        shineGrad.Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.70),
-            NumberSequenceKeypoint.new(1, 1.0),
-        })
-        shineGrad.Parent = glassShine
-
-        -- Gradient accent line below header
-        local accentBar = Instance.new("Frame")
-        accentBar.Size = UDim2.new(1, 0, 0, 2)
-        accentBar.Position = UDim2.new(0, 0, 0, 70)
-        accentBar.BorderSizePixel = 0
-        accentBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        accentBar.ZIndex = 5
-        accentBar.Parent = self.MainFrame
-        table.insert(self.ChromaObjects, accentBar)
         
-        -- Header Bar (Frosted White Glass Header)
+        -- Header Bar
         local topBar = Instance.new("Frame")
-        topBar.Size = UDim2.new(1, 0, 0, 70)
-        topBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        topBar.BackgroundTransparency = 0.82
-        topBar.BorderSizePixel = 0
-        topBar.ZIndex = 2
+        topBar.Size = UDim2.new(1, 0, 0, 58)
+        topBar.BackgroundTransparency = 1
         topBar.Parent = self.MainFrame
-        Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 24)
-
-        -- Avatar with glowing rainbow ring
-        local avatarRing = Instance.new("Frame")
-        avatarRing.Size = UDim2.new(0, 48, 0, 48)
-        avatarRing.Position = UDim2.new(0, 14, 0, 11)
-        avatarRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
-        avatarRing.BackgroundTransparency = 0.5
-        avatarRing.ZIndex = 2
-        avatarRing.Parent = topBar
-        Instance.new("UICorner", avatarRing).CornerRadius = UDim.new(1, 0)
-        table.insert(self.ChromaObjects, avatarRing)
-
+        
+        -- Creator Avatar Profile Frame
         local creatorAvatar = Instance.new("ImageLabel")
-        creatorAvatar.Size = UDim2.new(0, 42, 0, 42)
-        creatorAvatar.Position = UDim2.new(0, 3, 0, 3)
-        creatorAvatar.BackgroundColor3 = Color3.fromRGB(20, 30, 52)
+        creatorAvatar.Size = UDim2.new(0, 44, 0, 44)
+        creatorAvatar.Position = UDim2.new(0, 14, 0, 7)
+        creatorAvatar.BackgroundColor3 = Color3.fromRGB(20, 26, 42)
         creatorAvatar.Image = "rbxassetid://0"
-        creatorAvatar.ZIndex = 3
-        creatorAvatar.Parent = avatarRing
+        creatorAvatar.Parent = topBar
         Instance.new("UICorner", creatorAvatar).CornerRadius = UDim.new(1, 0)
+        
+        local avatarStroke = Instance.new("UIStroke")
+        avatarStroke.Thickness = 1.8
+        avatarStroke.Color = Color3.fromRGB(0, 240, 255)
+        avatarStroke.Parent = creatorAvatar
 
         task.spawn(function()
             while creatorAvatar and creatorAvatar.Parent do
@@ -2655,96 +2344,43 @@ Engine.Modules.UIController = {
             end
         end)
 
-        -- Title + Version Badge
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(0, 320, 0, 26)
-        title.Position = UDim2.new(0, 72, 0, 10)
+        title.Size = UDim2.new(1, -75, 0, 26)
+        title.Position = UDim2.new(0, 68, 0, 6)
         title.BackgroundTransparency = 1
-        title.Text = "⚡ RB ZOO SUPER PREMIUM"
+        title.Text = "⚡ RB ZOO CYBERPUNK VIP V10.5"
         title.Font = Enum.Font.GothamBlack
-        title.TextSize = 16
-        title.TextColor3 = Color3.fromRGB(255, 255, 255)
+        title.TextSize = 14
         title.TextXAlignment = Enum.TextXAlignment.Left
-        title.ZIndex = 3
         title.Parent = topBar
         table.insert(self.ChromaObjects, title)
-
-        local vBadge = Instance.new("TextLabel")
-        vBadge.Size = UDim2.new(0, 58, 0, 18)
-        vBadge.Position = UDim2.new(0, 72, 0, 38)
-        vBadge.BackgroundColor3 = Color3.fromRGB(0, 180, 255)
-        vBadge.BackgroundTransparency = 0.75
-        vBadge.Text = "V11.0"
-        vBadge.Font = Enum.Font.GothamBlack
-        vBadge.TextSize = 10
-        vBadge.TextColor3 = Color3.fromRGB(0, 240, 255)
-        vBadge.ZIndex = 3
-        vBadge.Parent = topBar
-        Instance.new("UICorner", vBadge).CornerRadius = UDim.new(0, 6)
-        table.insert(self.ChromaObjects, vBadge)
-
+        
         local authorLabel = Instance.new("TextLabel")
-        authorLabel.Size = UDim2.new(0, 280, 0, 18)
-        authorLabel.Position = UDim2.new(0, 138, 0, 38)
+        authorLabel.Size = UDim2.new(1, -75, 0, 18)
+        authorLabel.Position = UDim2.new(0, 68, 0, 30)
         authorLabel.BackgroundTransparency = 1
-        authorLabel.Text = "👑 " .. Engine.Author .. "  @" .. Engine.AuthorRoblox
+        authorLabel.Text = "👑 Sáng tạo bởi: " .. Engine.Author .. "  |  Roblox: @" .. Engine.AuthorRoblox
         authorLabel.Font = Enum.Font.GothamBold
         authorLabel.TextSize = 11
-        authorLabel.TextColor3 = Color3.fromRGB(255, 110, 200)
+        authorLabel.TextColor3 = Color3.fromRGB(255, 0, 140)
         authorLabel.TextXAlignment = Enum.TextXAlignment.Left
-        authorLabel.ZIndex = 3
         authorLabel.Parent = topBar
-
-        -- Status Dot & Label (ONLINE)
-        local statusLabel = Instance.new("TextLabel")
-        statusLabel.Size = UDim2.new(0, 90, 0, 16)
-        statusLabel.Position = UDim2.new(1, -115, 0, 14)
-        statusLabel.BackgroundTransparency = 1
-        statusLabel.Text = "● ONLINE"
-        statusLabel.Font = Enum.Font.GothamBlack
-        statusLabel.TextSize = 10
-        statusLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
-        statusLabel.TextXAlignment = Enum.TextXAlignment.Right
-        statusLabel.ZIndex = 3
-        statusLabel.Parent = topBar
-
-        -- Hotkey Hints
-        local hkLabel = Instance.new("TextLabel")
-        hkLabel.Size = UDim2.new(0, 220, 0, 14)
-        hkLabel.Position = UDim2.new(1, -235, 0, 40)
-        hkLabel.BackgroundTransparency = 1
-        hkLabel.Text = "RShift: Menu  |  P: Farm  |  F: Fly"
-        hkLabel.Font = Enum.Font.GothamMedium
-        hkLabel.TextSize = 9
-        hkLabel.TextColor3 = Color3.fromRGB(140, 165, 200)
-        hkLabel.TextXAlignment = Enum.TextXAlignment.Right
-        hkLabel.ZIndex = 3
-        hkLabel.Parent = topBar
-
+        
+        local line = Instance.new("Frame")
+        line.Size = UDim2.new(1, -32, 0, 1)
+        line.Position = UDim2.new(0, 16, 1, -1)
+        line.BorderSizePixel = 0
+        line.BackgroundTransparency = 0.5
+        line.Parent = topBar
+        table.insert(self.ChromaObjects, line)
+        
         local contentArea = Instance.new("Frame")
-        contentArea.Size = UDim2.new(1, 0, 1, -72)
-        contentArea.Position = UDim2.new(0, 0, 0, 72)
+        contentArea.Size = UDim2.new(1, 0, 1, -58)
+        contentArea.Position = UDim2.new(0, 0, 0, 58)
         contentArea.BackgroundTransparency = 1
         contentArea.Parent = self.MainFrame
-
-        self:BuildTabs(contentArea)
         
-        -- Smooth Rainbow Chroma Controller
-        Engine.Services.RunService.RenderStepped:Connect(function()
-            local hue = (tick() % 5) / 5
-            local rainbowColor = Color3.fromHSV(hue, 0.8, 1)
-            for _, obj in ipairs(self.ChromaObjects) do
-                if obj and obj.Parent then
-                    if obj:IsA("UIStroke") then
-                        obj.Color = rainbowColor
-                    elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
-                        obj.TextColor3 = rainbowColor
-                    elseif obj:IsA("Frame") then
-                        obj.BackgroundColor3 = rainbowColor
-                    end
-                end
-            end
-        end)
+        self:BuildTabs(contentArea)
         
         Engine.Services.RunService.RenderStepped:Connect(function()
             local hue = tick() % 6 / 6
@@ -2813,170 +2449,81 @@ Engine.Modules.UIController = {
     BuildTabs = function(self, parent)
         local lang = Engine.Modules.ConfigManager.Settings.Language
         local dict = L[lang] or L.VN
-
-        -- Sidebar — Liquid Glass
+        
         local tabContainer = Instance.new("Frame")
-        tabContainer.Size = UDim2.new(0, 172, 1, -24)
-        tabContainer.Position = UDim2.new(0, 12, 0, 12)
-        tabContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        tabContainer.BackgroundTransparency = 0.80
-        tabContainer.ClipsDescendants = true
-        tabContainer.ZIndex = 3
+        tabContainer.Size = UDim2.new(0, 160, 1, -20)
+        tabContainer.Position = UDim2.new(0, 14, 0, 10)
+        tabContainer.BackgroundColor3 = Color3.fromRGB(15, 20, 34)
+        tabContainer.BackgroundTransparency = 0.4
         tabContainer.Parent = parent
-        Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 16)
-
-        -- Glass White Border
-        local tabStroke = Instance.new("UIStroke")
-        tabStroke.Thickness = 1.5
-        tabStroke.Color = Color3.fromRGB(255, 255, 255)
-        tabStroke.Transparency = 0.45
-        tabStroke.Parent = tabContainer
-        table.insert(self.ChromaObjects, tabStroke)
-
-        -- Top shine strip
-        local tabShine = Instance.new("Frame")
-        tabShine.Size = UDim2.new(1, 0, 0, 36)
-        tabShine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        tabShine.BackgroundTransparency = 0.85
-        tabShine.BorderSizePixel = 0
-        tabShine.ZIndex = 4
-        tabShine.Parent = tabContainer
-        Instance.new("UICorner", tabShine).CornerRadius = UDim.new(0, 16)
-
-        local tabPadding = Instance.new("UIPadding")
-        tabPadding.PaddingTop = UDim.new(0, 10)
-        tabPadding.PaddingLeft = UDim.new(0, 8)
-        tabPadding.PaddingRight = UDim.new(0, 8)
-        tabPadding.PaddingBottom = UDim.new(0, 8)
-        tabPadding.Parent = tabContainer
-
+        Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 14)
+        
         local tabList = Instance.new("UIListLayout")
         tabList.SortOrder = Enum.SortOrder.LayoutOrder
-        tabList.Padding = UDim.new(0, 5)
+        tabList.Padding = UDim.new(0, 6)
         tabList.Parent = tabContainer
-
+        
         local pageContainer = Instance.new("Frame")
-        pageContainer.Size = UDim2.new(1, -200, 1, -24)
-        pageContainer.Position = UDim2.new(0, 196, 0, 12)
+        pageContainer.Size = UDim2.new(1, -195, 1, -20)
+        pageContainer.Position = UDim2.new(0, 184, 0, 10)
         pageContainer.BackgroundTransparency = 1
-        pageContainer.ZIndex = 3
+        pageContainer.ZIndex = 2
         pageContainer.Parent = parent
         
         local pages = {}
         local tabButtons = {}
-        local tabPills = {}
         
         local function createTab(name, first)
             local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, 0, 0, 42)
-            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            btn.BackgroundTransparency = first and 0.68 or 1
-            btn.Text = name
-            btn.TextColor3 = first and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(210, 225, 245)
+            btn.Size = UDim2.new(1, 0, 0, 40)
+            btn.BackgroundTransparency = 1
+            btn.Text = "    " .. name
+            btn.TextColor3 = Color3.fromRGB(180, 195, 215)
             btn.Font = Enum.Font.GothamBold
             btn.TextSize = 12
             btn.TextXAlignment = Enum.TextXAlignment.Left
-            btn.ZIndex = 5
             btn.Parent = tabContainer
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
-
-            -- Pill border bên TRONG button
-            local pill = Instance.new("Frame")
-            pill.Size = UDim2.new(0, 3, 0, 22)
-            pill.Position = UDim2.new(0, 0, 0.5, -11)
-            pill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            pill.BorderSizePixel = 0
-            pill.Visible = first
-            pill.ZIndex = 6
-            pill.Parent = btn
-            Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
-            if first then table.insert(self.ChromaObjects, pill) end
-
-            local btnPad = Instance.new("UIPadding")
-            btnPad.PaddingLeft = UDim.new(0, 14)
-            btnPad.Parent = btn
-
-            -- Glass active bg
-            if first then
-                local activeBg = Instance.new("UIGradient")
-                activeBg.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
-                })
-                activeBg.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.65),
-                    NumberSequenceKeypoint.new(1, 0.85),
-                })
-                activeBg.Rotation = 90
-                activeBg.Parent = btn
-            end
-
+            
             local page = Instance.new("ScrollingFrame")
             page.Size = UDim2.new(1, 0, 1, 0)
             page.BackgroundTransparency = 1
             page.BorderSizePixel = 0
-            page.ScrollBarThickness = 3
+            page.ScrollBarThickness = 4
             page.ScrollBarImageTransparency = 0.5
             page.ScrollBarImageColor3 = Color3.fromRGB(0, 240, 255)
             page.Visible = first
-            page.ZIndex = 3
+            page.ZIndex = 2
             page.AutomaticCanvasSize = Enum.AutomaticSize.Y
             page.CanvasSize = UDim2.new(0, 0, 0, 0)
             page.Parent = pageContainer
-
-            local pagePad = Instance.new("UIPadding")
-            pagePad.PaddingRight = UDim.new(0, 6)
-            pagePad.Parent = page
-
+            
             local pageLayout = Instance.new("UIListLayout")
             pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
             pageLayout.Padding = UDim.new(0, 8)
             pageLayout.Parent = page
-
+            
             pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                 page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 20)
             end)
-
+            
+            if first then
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                table.insert(self.ChromaObjects, btn)
+            end
+            
             btn.MouseButton1Click:Connect(function()
                 Engine.Modules.AudioFX:Click()
                 for _, p in pairs(pages) do p.Visible = false end
-                for i, b in pairs(tabButtons) do
-                    b.TextColor3 = Color3.fromRGB(210, 225, 245)
-                    b.BackgroundTransparency = 1
-                    local g = b:FindFirstChildOfClass("UIGradient")
-                    if g then g:Destroy() end
-                    if tabPills[i] then tabPills[i].Visible = false end
-                end
+                for _, b in pairs(tabButtons) do b.TextColor3 = Color3.fromRGB(180, 195, 215) end
                 page.Visible = true
                 btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                btn.BackgroundTransparency = 0.68
-                pill.Visible = true
-                local g2 = Instance.new("UIGradient")
-                g2.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
-                })
-                g2.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.65),
-                    NumberSequenceKeypoint.new(1, 0.85),
-                })
-                g2.Rotation = 90
-                g2.Parent = btn
-                if not pill:FindFirstChild("_chroma") then
-                    local m = Instance.new("StringValue")
-                    m.Name = "_chroma"
-                    m.Parent = pill
-                    table.insert(self.ChromaObjects, pill)
-                end
+                table.insert(self.ChromaObjects, btn)
             end)
-
+            
             table.insert(pages, page)
             table.insert(tabButtons, btn)
-            table.insert(tabPills, pill)
             return page
         end
-
-
         
         local pageESP = createTab(dict.ESP_TAB, true)
         local pageCombat = createTab(dict.COMBAT_TAB, false)
@@ -3007,101 +2554,12 @@ Engine.Modules.UIController = {
         self:CreateSlider(pageCombat, dict.HITBOX_SIZE, 2, 25, "HitboxSize")
         
         -- Automation Tab
-        -- ===== FORCE ROLE SELECTOR (ZOO / OOF / AUTO) =====
-        local roleFrame = Instance.new("Frame")
-        roleFrame.Size = UDim2.new(1, -10, 0, 80)
-        roleFrame.BackgroundColor3 = Color3.fromRGB(12, 20, 38)
-        roleFrame.BackgroundTransparency = 0.2
-        roleFrame.ZIndex = 3
-        roleFrame.Parent = pageFarm
-        Instance.new("UICorner", roleFrame).CornerRadius = UDim.new(0, 14)
-        
-        local roleStroke = Instance.new("UIStroke")
-        roleStroke.Thickness = 1.5
-        roleStroke.Color = Color3.fromRGB(0, 240, 255)
-        roleStroke.Transparency = 0.4
-        roleStroke.Parent = roleFrame
-        table.insert(self.ChromaObjects, roleStroke)
-        
-        local roleTitle = Instance.new("TextLabel")
-        roleTitle.Size = UDim2.new(1, 0, 0, 24)
-        roleTitle.Position = UDim2.new(0, 0, 0, 4)
-        roleTitle.BackgroundTransparency = 1
-        roleTitle.Text = "⚡ CHỌN VAI TRÒ (Force Role)"
-        roleTitle.TextColor3 = Color3.fromRGB(0, 240, 255)
-        roleTitle.Font = Enum.Font.GothamBlack
-        roleTitle.TextSize = 11
-        roleTitle.ZIndex = 4
-        roleTitle.Parent = roleFrame
-        
-        local roleBtnContainer = Instance.new("Frame")
-        roleBtnContainer.Size = UDim2.new(1, -16, 0, 40)
-        roleBtnContainer.Position = UDim2.new(0, 8, 0, 32)
-        roleBtnContainer.BackgroundTransparency = 1
-        roleBtnContainer.ZIndex = 3
-        roleBtnContainer.Parent = roleFrame
-        Instance.new("UIListLayout", roleBtnContainer).FillDirection = Enum.FillDirection.Horizontal
-        
-        local roleDefs = {
-            {label = "🔵 ZOO", role = "ZOOKEEPER", colorOn = Color3.fromRGB(0, 200, 255), colorOff = Color3.fromRGB(25, 40, 70)},
-            {label = "🔴 OOF", role = "OOF",       colorOn = Color3.fromRGB(255, 60, 80),  colorOff = Color3.fromRGB(50, 18, 22)},
-            {label = "⚪ AUTO", role = "AUTO",      colorOn = Color3.fromRGB(120, 255, 160), colorOff = Color3.fromRGB(20, 35, 20)},
-        }
-        
-        local roleButtons = {}
-        local function updateRoleButtons(activeRole)
-            for _, rb in ipairs(roleButtons) do
-                local isActive = (rb.role == activeRole)
-                Engine.Services.TweenService:Create(rb.btn, TweenInfo.new(0.18), {
-                    BackgroundColor3 = isActive and rb.colorOn or rb.colorOff
-                }):Play()
-                rb.btn.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 180, 200)
-                rb.btn.Font = isActive and Enum.Font.GothamBlack or Enum.Font.Gotham
-            end
-        end
-        
-        for _, def in ipairs(roleDefs) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(0.31, 0, 1, 0)
-            btn.BackgroundColor3 = (Engine.Modules.ConfigManager.Settings.ForceRole == def.role) and def.colorOn or def.colorOff
-            btn.Text = def.label
-            btn.TextColor3 = (Engine.Modules.ConfigManager.Settings.ForceRole == def.role) and Color3.fromRGB(255,255,255) or Color3.fromRGB(160,180,200)
-            btn.Font = (Engine.Modules.ConfigManager.Settings.ForceRole == def.role) and Enum.Font.GothamBlack or Enum.Font.Gotham
-            btn.TextSize = 11
-            btn.ZIndex = 5
-            btn.Parent = roleBtnContainer
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
-            
-            local entry = {btn = btn, role = def.role, colorOn = def.colorOn, colorOff = def.colorOff}
-            table.insert(roleButtons, entry)
-            
-            btn.MouseButton1Click:Connect(function()
-                Engine.Modules.AudioFX:Click()
-                Engine.Modules.ConfigManager.Settings.ForceRole = def.role
-                Engine.Modules.ConfigManager:Save()
-                updateRoleButtons(def.role)
-                -- Cập nhật role ngay lập tức
-                Engine.State.CurrentRole = (def.role == "AUTO") and DeterminePlayerRole(LocalPlayer) or def.role
-                -- Nếu đang farm thì restart để áp dụng vai trò mới
-                if Engine.Modules.ConfigManager.Settings.AutoFarm then
-                    Engine.Modules.FarmManager:Stop()
-                    task.wait(0.1)
-                    Engine.Modules.FarmManager:Start()
-                end
-                Engine.Modules.NotificationManager:Notify("⚡ Force Role", 
-                    def.role == "AUTO" and "Vai trò: Tự động nhận diện" or
-                    def.role == "ZOOKEEPER" and "Vai trò: 🔵 ZOO (Bắn OOF)" or
-                    "Vai trò: 🔴 OOF (Bay lên trời + nhấn E)", 2)
-            end)
-        end
-        -- ===== END FORCE ROLE =====
-        
         self:CreateToggle(pageFarm, dict.AUTO_FARM, "AutoFarm", function(v)
             if v then Engine.Modules.FarmManager:Start() else Engine.Modules.FarmManager:Stop() end
         end)
         self:CreateToggle(pageFarm, dict.WALL_BYPASS, "SmartWallBypass")
         self:CreateSlider(pageFarm, dict.FARM_SPEED, 30, 250, "AutoFarmSpeed")
-        self:CreateSlider(pageFarm, dict.FARM_HEIGHT, 100, 2000, "AutoFarmHeight")
+        self:CreateSlider(pageFarm, dict.FARM_HEIGHT, 50, 1500, "AutoFarmHeight")
         self:CreateToggle(pageFarm, dict.ANTI_STUCK, "AntiStuck")
         self:CreateToggle(pageFarm, dict.AUTO_MONEY, "AutoMoney")
         self:CreateToggle(pageFarm, dict.ANTI_AFK, "AntiAFK")
@@ -3142,9 +2600,9 @@ Engine.Modules.UIController = {
             Engine.Modules.AudioFX:Click()
             if setclipboard or toclipboard then
                 (setclipboard or toclipboard)(Engine.Modules.KeySystem.KeyURL)
-                Engine.Modules.NotificationManager:Notify("🔑 Lấy Key", "✓ Đã sao chép link: https://getkeyfree24h.netlify.app/", 3)
+                Engine.Modules.NotificationManager:Notify("Discord Key Server", "✓ Đã sao chép Link Discord: https://discord.gg/6Nfc7jGKP", 3)
             else
-                Engine.Modules.NotificationManager:Notify("🔑 Lấy Key", "Link: https://getkeyfree24h.netlify.app/", 4)
+                Engine.Modules.NotificationManager:Notify("Discord Key Server", "Link: https://discord.gg/6Nfc7jGKP", 4)
             end
         end)
 
@@ -3976,17 +3434,11 @@ Engine.Modules.UIController = {
                     local row = Instance.new("TextButton")
                     row.Size = UDim2.new(1, 0, 0, 34)
                     row.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-                    row.BackgroundTransparency = 0.93
+                    row.BackgroundTransparency = 0.95
                     row.Text = ""
                     row.ZIndex = 5
                     row.Parent = scrollList
-                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-
-                    local rowStroke = Instance.new("UIStroke")
-                    rowStroke.Thickness = 1
-                    rowStroke.Color = Color3.fromRGB(255, 255, 255)
-                    rowStroke.Transparency = 0.92
-                    rowStroke.Parent = row
+                    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 6)
 
                     local cmdTag = Instance.new("TextLabel")
                     cmdTag.Size = UDim2.new(0.44, -6, 1, 0)
@@ -4016,10 +3468,10 @@ Engine.Modules.UIController = {
 
                     -- Hover highlight
                     row.MouseEnter:Connect(function()
-                        row.BackgroundTransparency = 0.82
+                        row.BackgroundTransparency = 0.85
                     end)
                     row.MouseLeave:Connect(function()
-                        row.BackgroundTransparency = 0.93
+                        row.BackgroundTransparency = 0.95
                     end)
 
                     -- Nhấn vào → tự điền lệnh vào ô input
@@ -4036,26 +3488,19 @@ Engine.Modules.UIController = {
     
     CreateToggle = function(self, parent, text, configKey, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 46)
-        frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        frame.BackgroundTransparency = 0.82
+        frame.Size = UDim2.new(1, -10, 0, 44)
+        frame.BackgroundColor3 = Color3.fromRGB(18, 24, 40)
+        frame.BackgroundTransparency = 0.3
         frame.ZIndex = 3
         frame.Parent = parent
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
-
-        local cardStroke = Instance.new("UIStroke")
-        cardStroke.Thickness = 1
-        cardStroke.Color = Color3.fromRGB(255, 255, 255)
-        cardStroke.Transparency = 0.6
-        cardStroke.Parent = frame
-        table.insert(self.ChromaObjects, cardStroke)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
         
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, -65, 1, 0)
-        label.Position = UDim2.new(0, 14, 0, 0)
+        label.Position = UDim2.new(0, 12, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = text
-        label.TextColor3 = Color3.fromRGB(240, 248, 255)
+        label.TextColor3 = Color3.fromRGB(230, 240, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -4066,8 +3511,8 @@ Engine.Modules.UIController = {
         toggleBtn.Name = Engine.Modules.ConfigManager.Settings[configKey] and "ToggledBG" or "OffBG"
         toggleBtn.Size = UDim2.new(0, 44, 0, 22)
         toggleBtn.Position = UDim2.new(1, -54, 0.5, -11)
-        toggleBtn.BackgroundColor3 = Engine.Modules.ConfigManager.Settings[configKey] and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(35, 50, 78)
-        toggleBtn.BackgroundTransparency = Engine.Modules.ConfigManager.Settings[configKey] and 0.1 or 0.4
+        toggleBtn.BackgroundColor3 = Engine.Modules.ConfigManager.Settings[configKey] and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(45, 52, 68)
+        toggleBtn.BackgroundTransparency = Engine.Modules.ConfigManager.Settings[configKey] and 0.2 or 0.4
         toggleBtn.Text = ""
         toggleBtn.ZIndex = 4
         toggleBtn.Parent = frame
@@ -4086,7 +3531,7 @@ Engine.Modules.UIController = {
         local function updateVisual(newState)
             toggleBtn.Name = newState and "ToggledBG" or "OffBG"
             local goalPos = newState and UDim2.new(1, -20, 0, 2) or UDim2.new(0, 2, 0, 2)
-            local goalColor = newState and Color3.fromRGB(0, 210, 255) or Color3.fromRGB(35, 50, 78)
+            local goalColor = newState and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(45, 52, 68)
             
             Engine.Services.TweenService:Create(circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos}):Play()
             Engine.Services.TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = goalColor}):Play()
@@ -4110,27 +3555,20 @@ Engine.Modules.UIController = {
     
     CreateSlider = function(self, parent, text, min, max, configKey)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 62)
-        frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        frame.BackgroundTransparency = 0.82
+        frame.Size = UDim2.new(1, -10, 0, 60)
+        frame.BackgroundColor3 = Color3.fromRGB(18, 24, 40)
+        frame.BackgroundTransparency = 0.3
         frame.ZIndex = 3
         frame.Parent = parent
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
-
-        local cardStroke = Instance.new("UIStroke")
-        cardStroke.Thickness = 1
-        cardStroke.Color = Color3.fromRGB(255, 255, 255)
-        cardStroke.Transparency = 0.6
-        cardStroke.Parent = frame
-        table.insert(self.ChromaObjects, cardStroke)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
         
         local default = Engine.Modules.ConfigManager.Settings[configKey]
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -14, 0, 24)
-        label.Position = UDim2.new(0, 14, 0, 5)
+        label.Size = UDim2.new(1, -12, 0, 24)
+        label.Position = UDim2.new(0, 12, 0, 4)
         label.BackgroundTransparency = 1
         label.Text = text .. ": " .. string.format("%.2f", default)
-        label.TextColor3 = Color3.fromRGB(240, 248, 255)
+        label.TextColor3 = Color3.fromRGB(230, 240, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -4138,10 +3576,10 @@ Engine.Modules.UIController = {
         label.Parent = frame
         
         local bar = Instance.new("Frame")
-        bar.Size = UDim2.new(1, -28, 0, 8)
-        bar.Position = UDim2.new(0, 14, 0, 39)
-        bar.BackgroundColor3 = Color3.fromRGB(28, 42, 70)
-        bar.BackgroundTransparency = 0.3
+        bar.Size = UDim2.new(1, -24, 0, 8)
+        bar.Position = UDim2.new(0, 12, 0, 38)
+        bar.BackgroundColor3 = Color3.fromRGB(35, 45, 68)
+        bar.BackgroundTransparency = 0.2
         bar.ZIndex = 4
         bar.Parent = frame
         Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
@@ -4149,7 +3587,7 @@ Engine.Modules.UIController = {
         local fill = Instance.new("Frame")
         fill.Name = "ToggledBG"
         fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(0, 220, 255)
+        fill.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
         fill.ZIndex = 4
         fill.Parent = bar
         Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
