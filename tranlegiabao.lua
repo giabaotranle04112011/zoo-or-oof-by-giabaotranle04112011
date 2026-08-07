@@ -159,8 +159,10 @@ Engine.Modules.ConfigManager = {
         -- Movement & Character
         Fly = false, FlySpeed = 120, Speed = false, SpeedValue = 20, Noclip = false, InfJump = false, AntiAFK = true,
         -- Automation & Farm
-        AutoFarm = false, AutoFarmHeight = 45, AutoFarmSpeed = 85, SmartMovement = true, AntiStuck = true,
+        AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 85, SmartMovement = true, AntiStuck = true,
         SmartWallBypass = true, AutoMoney = true,
+        -- Role Override: "AUTO" = tự nhận diện, "ZOOKEEPER" = ép Zoo, "OOF" = ép OOF
+        ForceRole = "AUTO",
         -- System & Visuals
         ShowHUD = true, ShowRadar = true, FPSBooster = true, AudioFX = true
     },
@@ -973,6 +975,12 @@ local function CheckIsProtectedOrNeutral(plr)
 end
 
 local function DeterminePlayerRole(plr)
+    -- FORCE ROLE OVERRIDE: Nếu người dùng ép vai trò thủ công và đây là LocalPlayer
+    local forceRole = Engine.Modules and Engine.Modules.ConfigManager and Engine.Modules.ConfigManager.Settings and Engine.Modules.ConfigManager.Settings.ForceRole
+    if forceRole and forceRole ~= "AUTO" and plr == LocalPlayer then
+        return forceRole
+    end
+    
     if not plr then return "NEUTRAL" end
     
     local char = nil
@@ -991,7 +999,7 @@ local function DeterminePlayerRole(plr)
     local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
     if not hum or hum.Health <= 0 or not hrp then return "NEUTRAL" end
 
-    -- 1. Kiểm tra ForceField (Khi mới hồi sinh/trong khi bảo vệ tân thủ)
+    -- 1. Kiểm tra ForceField (Người mới hồi sinh / Người thường trong vùng an toàn)
     for _, child in ipairs(char:GetChildren()) do
         if child:IsA("ForceField") or child.Name:lower():find("shield") or child.Name:lower():find("protection") then
             return "NEUTRAL"
@@ -1000,13 +1008,15 @@ local function DeterminePlayerRole(plr)
 
     local isZoo, isOof = false, false
 
-    -- 2. Kiểm tra Team của Player (nếu là Player)
+    -- 2. Kiểm tra Team của Player
     if typeof(plr) == "Instance" and plr:IsA("Player") and plr.Team then
         local tName = plr.Team.Name:lower()
-        if tName:find("zoo") or tName:find("keeper") or tName:find("human") or tName:find("guard") or tName:find("hunter") then
+        if tName:find("zoo") or tName:find("keeper") or tName:find("guard") or tName:find("hunter") then
             isZoo = true
         elseif tName:find("oof") or tName:find("animal") or tName:find("beast") or tName:find("infected") or tName:find("monster") then
             isOof = true
+        elseif tName:find("neutral") or tName:find("civilian") or tName:find("lobby") or tName:find("spectator") or tName:find("guest") or tName:find("human") then
+            return "NEUTRAL"
         end
     end
 
@@ -1016,14 +1026,15 @@ local function DeterminePlayerRole(plr)
         if attrRole then
             local rStr = tostring(attrRole):lower()
             if rStr:find("zoo") or rStr:find("keeper") then isZoo = true
-            elseif rStr:find("oof") or rStr:find("animal") or rStr:find("beast") then isOof = true end
+            elseif rStr:find("oof") or rStr:find("animal") or rStr:find("beast") then isOof = true
+            elseif rStr:find("neutral") or rStr:find("civilian") or rStr:find("human") then return "NEUTRAL" end
         end
     end
 
     -- 4. Kiểm tra Tên Model / Tên Nhân vật
     if not isZoo and not isOof then
         local mName = char.Name:lower()
-        if mName:find("oof") or mName:find("animal") or mName:find("beast") or mName:find("bear") or mName:find("wolf") or mName:find("lion") or mName:find("tiger") or mName:find("dino") or mName:find("cat") or mName:find("dog") or mName:find("gorilla") or mName:find("monster") then
+        if mName:find("oof") or mName:find("animal") or mName:find("beast") or mName:find("bear") or mName:find("wolf") or mName:find("lion") or mName:find("tiger") or mName:find("dino") or mName:find("cat") or mName:find("dog") or mName:find("gorilla") or mName:find("monster") or mName:find("zombie") then
             isOof = true
         end
     end
@@ -1035,7 +1046,7 @@ local function DeterminePlayerRole(plr)
                 local n = tool.Name:lower()
                 if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") or n:find("laser") then
                     isZoo = true
-                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") then
+                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") or n:find("roar") then
                     isOof = true
                 end
             end
@@ -1049,7 +1060,7 @@ local function DeterminePlayerRole(plr)
                         local n = tool.Name:lower()
                         if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") then
                             isZoo = true
-                        elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") then
+                        elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") or n:find("roar") then
                             isOof = true
                         end
                     end
@@ -1061,11 +1072,7 @@ local function DeterminePlayerRole(plr)
     if isZoo then return "ZOOKEEPER" end
     if isOof then return "OOF" end
 
-    -- 6. NẾU LÀ PLAYER KHÁC VÀ KHÔNG PHẢI ZOOKEEPER -> HỌ LÀ OOF ĐỂ ZOOKEEPER SẮN
-    if typeof(plr) == "Instance" and plr:IsA("Player") and plr ~= LocalPlayer then
-        return "OOF"
-    end
-
+    -- 6. KHÔNG PHẢI ZOO VÀ KHÔNG PHẢI OOF -> CHÍNH LÀ NGƯỜI THƯỜNG (NEUTRAL) -> ĐỨNG YÊN
     return "NEUTRAL"
 end
 
@@ -1132,28 +1139,69 @@ task.spawn(function()
     end
 end)
 
+local function IsTargetValid(target)
+    if not target or not target.Parent then return false end
+    if not target:IsDescendantOf(workspace) then return false end
+    
+    local charModel = target.Parent
+    local hum = charModel:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    
+    local plr = Engine.Services.Players:GetPlayerFromCharacter(charModel)
+    if plr and CheckIsProtectedOrNeutral(plr) then return false end
+    
+    local myRole = DeterminePlayerRole(LocalPlayer)
+    local targetRole = DeterminePlayerRole(plr or charModel)
+    
+    -- QUY TẮC THEO 3 VAI TRÒ:
+    -- 1. Người thường (NEUTRAL) không bao giờ là mục tiêu
+    if targetRole == "NEUTRAL" then return false end
+    
+    -- 2. Nếu mình là ZOOKEEPER -> farm OOF
+    if myRole == "ZOOKEEPER" and targetRole ~= "OOF" then return false end
+    
+    -- 3. Nếu mình là OOF -> farm ZOOKEEPER
+    if myRole == "OOF" and targetRole ~= "ZOOKEEPER" then return false end
+    
+    -- 4. Nếu mình là NEUTRAL -> không lọc (farm tất cả OOF+ZOO)
+    -- (Không return false ở đây để NEUTRAL vẫn farm được)
+    
+    return true
+end
+
 local function GetBestTarget()
+    FastScanPlayers()
     local char = LocalPlayer.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
     local myPos = hrp.Position
     
     local myRole = DeterminePlayerRole(LocalPlayer)
-    -- NẾU MÌNH LÀ NEUTRAL (NGƯỜI THƯỜNG): KHÔNG CHỌN MỤC TIÊU (ĐỨNG YÊN)
-    if myRole == "NEUTRAL" then
-        Engine.State.TargetModel = nil
-        return nil
-    end
+    Engine.State.CurrentRole = myRole
     
     local bestTargetRoot = nil
     local bestModel = nil
     local minScore = math.huge
     
-    -- NẾU MÌNH LÀ ZOOKEEPER -> CHỈ LẤY DANH SÁCH OOF
-    local pool = (myRole == "ZOOKEEPER") and Engine.Cache.Oofs or Engine.Cache.Zookeepers
+    -- PHÂN LOẠI MỤC TIÊU THEO 3 THÀNH PHẦN (ZOO, OOF, NGƯỜI THƯỜNG):
+    -- ZOO (Zookeeper) → farm OOF
+    -- OOF → farm ZOO
+    -- NEUTRAL → mặc định farm OOF (giống như ZOOKEEPER)
+    local pool = {}
+    if myRole == "ZOOKEEPER" then
+        pool = Engine.Cache.Oofs
+    elseif myRole == "OOF" then
+        pool = Engine.Cache.Zookeepers
+    else
+        -- NEUTRAL: dùng OOF pool làm mặc định để không bị đứng yên
+        pool = Engine.Cache.Oofs
+        if #pool == 0 then
+            pool = Engine.Cache.Zookeepers
+        end
+    end
     
     for _, item in ipairs(pool) do
-        if item.Root and IsTargetValid(item.Root) then
+        if item.Humanoid and item.Humanoid.Health > 0 and item.Root and IsTargetValid(item.Root) then
             local dist = (item.Root.Position - myPos).Magnitude
             local hpFactor = (item.Humanoid.Health / item.Humanoid.MaxHealth) * 30
             local score = dist + hpFactor
@@ -1168,33 +1216,6 @@ local function GetBestTarget()
     
     Engine.State.TargetModel = bestModel
     return bestTargetRoot
-end
-
-local function IsTargetValid(target)
-    if not target or not target.Parent then return false end
-    if not target:IsDescendantOf(workspace) then return false end
-    
-    local charModel = target.Parent
-    local hum = charModel:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    
-    local plr = Engine.Services.Players:GetPlayerFromCharacter(charModel)
-    if plr and CheckIsProtectedOrNeutral(plr) then return false end
-    
-    -- KIỂM TRA CHÍNH XÁC VAI TRÒ (BẮT BUỘC KHÔNG PHẢI NEUTRAL)
-    local myRole = DeterminePlayerRole(LocalPlayer)
-    local targetRole = DeterminePlayerRole(plr or charModel)
-    
-    -- QUY TẮC NGHÊM NGẶT: NGƯỜI THƯỜNG (NEUTRAL) KHÔNG BAO GIỜ LÀ MỤC TIÊU
-    if targetRole == "NEUTRAL" then return false end
-    
-    -- NẾU MÌNH LÀ ZOOKEEPER -> CHỈ ĐƯỢC PHÉP BAY ĐẾN OOF
-    if myRole == "ZOOKEEPER" and targetRole ~= "OOF" then return false end
-    
-    -- NẾU MÌNH LÀ OOF -> CHỈ ĐƯỢC PHÉP BAY ĐẾN ZOOKEEPER
-    if myRole == "OOF" and targetRole ~= "ZOOKEEPER" then return false end
-    
-    return true
 end
 
 local function CheckLineOfSight(originPos, targetPos, ignoreModel)
@@ -1837,103 +1858,191 @@ Engine.Modules.HunterHUD = {
 }
 
 -- ==========================================
--- [11] STANDALONE AUTO ATTACK ENGINE (ZOOKEEPER: GUN 50 CPS | OOF: CLAW + E SKILL 50 CPS)
+-- [11] COMBAT CONTROLLER — HỆ THỐNG TẤN CÔNG DUY NHẤT
+-- Chịu trách nhiệm 100% cho: AutoEquip, AutoAttack, AutoSkill
+-- FarmManager CHỈ lo di chuyển, không được gọi attack/click.
 -- ==========================================
-task.spawn(function()
-    while task.wait(0.02) do
-        pcall(function()
-            local currentRole = DeterminePlayerRole(LocalPlayer)
-            Engine.State.CurrentRole = currentRole
-
-            -- CHỈ TẮT KHI LÀ NGƯỜI THƯỜNG (NEUTRAL)
-            if currentRole == "NEUTRAL" then
-                return
+Engine.Modules.CombatController = {
+    State = {
+        LastAttack = 0,  -- Timestamp lần attack cuối
+        LastSkill  = 0,  -- Timestamp lần dùng kỹ năng cuối (E / Q)
+        LastEquip  = 0,  -- Timestamp lần equip cuối
+    },
+    Thread = nil,
+    
+    -- Tự động Equip Tool từ Backpack nếu Character chưa cầm
+    AutoEquip = function(self, char, hum)
+        if not char or not hum or hum.Health <= 0 then return nil end
+        local tool = char:FindFirstChildOfClass("Tool")
+        if tool then return tool end
+        
+        -- Cooldown equip (tránh spam equip)
+        if tick() - self.State.LastEquip < 0.5 then return nil end
+        self.State.LastEquip = tick()
+        
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if backpack then
+            local gTool = backpack:FindFirstChildOfClass("Tool")
+            if gTool then
+                pcall(function() hum:EquipTool(gTool) end)
+                task.wait(0.05) -- Chờ equip xong
+                return char:FindFirstChildOfClass("Tool")
             end
-            
-            local autoAttackEnabled = Engine.Modules.ConfigManager.Settings.AutoAttack
-            local autoFarmEnabled = Engine.Modules.ConfigManager.Settings.AutoFarm
-            
-            if autoAttackEnabled or autoFarmEnabled or currentRole == "ZOOKEEPER" or currentRole == "OOF" then
-                local char = LocalPlayer.Character
-                if char then
-                    -- 1. Tự động lấy vũ khí (Súng / Móng cào) ra tay nếu đang cất trong ba lô
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    if not tool then
-                        local backpack = LocalPlayer:FindFirstChild("Backpack")
-                        if backpack then
-                            local gTool = backpack:FindFirstChildOfClass("Tool")
-                            local hum = char:FindFirstChildOfClass("Humanoid")
-                            if gTool and hum then
-                                hum:EquipTool(gTool)
-                                tool = gTool
-                            end
+        end
+        return nil
+    end,
+    
+    -- Kiểm tra safety trước khi attack
+    CanAttack = function(self)
+        local char = LocalPlayer.Character
+        if not char then return false, nil, nil end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hum or hum.Health <= 0 or not hrp then return false, nil, nil end
+        
+        local role = Engine.State.CurrentRole
+        if role == "NEUTRAL" then return false, nil, nil end
+        if not Engine.Modules.ConfigManager.Settings.AutoAttack then return false, nil, nil end
+        
+        -- Phải có target hợp lệ mới attack (tránh spam click vô mục đích)
+        local target = Engine.State.CurrentTarget
+        if not target or not IsTargetValid(target) then return false, nil, nil end
+        
+        return true, char, hum
+    end,
+    
+    -- Thực thi Attack (dùng chung cho Zoo và Oof)
+    DoAttack = function(self, char, hum, role)
+        -- Equip tool
+        local tool = self:AutoEquip(char, hum)
+        if not tool then
+            -- Không có tool nhưng vẫn click (một số game không cần tool)
+            TriggerMouseClick()
+            return
+        end
+        
+        -- Activate tool
+        pcall(function() tool:Activate() end)
+        
+        -- Fire RemoteEvents nếu có (hỗ trợ tool có server logic)
+        local target = Engine.State.CurrentTarget
+        for _, v in ipairs(tool:GetDescendants()) do
+            if v:IsA("RemoteEvent") then
+                local n = v.Name:lower()
+                if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") or n:find("slash") or n:find("hit") then
+                    pcall(function()
+                        if target and target.Parent then
+                            v:FireServer(target.Position)
+                        else
+                            v:FireServer()
                         end
-                    end
-                    
-                    -- 2. Thực thi tấn công & RemoteEvent của vũ khí
-                    if tool then
-                        tool:Activate()
-                        for _, v in ipairs(tool:GetDescendants()) do
-                            if v:IsA("RemoteEvent") then
-                                local n = v.Name:lower()
-                                if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") or n:find("slash") or n:find("hit") then
-                                    if Engine.State.CurrentTarget then
-                                        pcall(function() v:FireServer(Engine.State.CurrentTarget.Position) end)
-                                        pcall(function() v:FireServer(Engine.State.CurrentTarget) end)
-                                    else
-                                        pcall(function() v:FireServer() end)
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- 3. NẾU LÀ OOF: TỰ ĐỘNG TẤN CÔNG KỸ NĂNG E
-                    if currentRole == "OOF" then
-                        PressKey(Enum.KeyCode.E)
-                    end
-                    
-                    -- 4. Click chuột trái thật siêu tốc 50 lần/giây (50 CPS)
-                    TriggerMouseClick()
+                    end)
                 end
             end
+        end
+        
+        -- Click chuột trái
+        TriggerMouseClick()
+    end,
+    
+    -- Zookeeper Attack Logic
+    ZookeeperAttack = function(self, char, hum)
+        -- Attack cooldown: 0.1s (10 CPS) — đủ để Roblox xử lý gun
+        if tick() - self.State.LastAttack < 0.1 then return end
+        self.State.LastAttack = tick()
+        self:DoAttack(char, hum, "ZOOKEEPER")
+        
+        -- Zookeeper KHÔNG nhấn E
+    end,
+    
+    -- OOF Attack Logic  
+    OofAttack = function(self, char, hum)
+        -- Attack cooldown: 0.15s cho claw (hơi chậm hơn gun)
+        if tick() - self.State.LastAttack < 0.15 then return end
+        self.State.LastAttack = tick()
+        self:DoAttack(char, hum, "OOF")
+        -- OOF: không gọi E ở đây — E được gọi riêng ở AutoSkill
+    end,
+    
+    -- Auto Skill (E hoặc Q) — timer HOÀN TOÀN độc lập với Attack
+    AutoSkill = function(self, char, hum, role)
+        if not Engine.Modules.ConfigManager.Settings.AutoSkill then return end
+        
+        if role == "OOF" then
+            -- E cooldown: 0.25s
+            if tick() - self.State.LastSkill < 0.25 then return end
+            self.State.LastSkill = tick()
+            PressKey(Enum.KeyCode.E)
+            
+        elseif role == "ZOOKEEPER" then
+            -- Q cooldown: 2.5s (skill Q của Zookeeper thường có cooldown dài)
+            if tick() - self.State.LastSkill < 2.5 then return end
+            self.State.LastSkill = tick()
+            PressKey(Enum.KeyCode.Q)
+        end
+    end,
+    
+    -- Reset toàn bộ CombatState (gọi khi Respawn)
+    Reset = function(self)
+        self.State.LastAttack = 0
+        self.State.LastSkill  = 0
+        self.State.LastEquip  = 0
+        Engine.State.CurrentTarget = nil
+    end,
+    
+    -- Khởi chạy CombatController (1 thread duy nhất)
+    Start = function(self)
+        -- Ngăn chạy 2 lần
+        if self.Thread then
+            pcall(function() task.cancel(self.Thread) end)
+            self.Thread = nil
+        end
+        
+        self.Thread = task.spawn(function()
+            while true do
+                task.wait(0.02) -- 50 tick/giây — đủ responsive
+                pcall(function()
+                    local ok, char, hum = self:CanAttack()
+                    if not ok then return end
+                    
+                    local role = Engine.State.CurrentRole
+                    
+                    if role == "ZOOKEEPER" then
+                        self:ZookeeperAttack(char, hum)
+                        self:AutoSkill(char, hum, "ZOOKEEPER")
+                        
+                    elseif role == "OOF" then
+                        self:OofAttack(char, hum)
+                        self:AutoSkill(char, hum, "OOF")
+                        
+                    -- NEUTRAL: không làm gì cả
+                    end
+                end)
+            end
         end)
+    end,
+    
+    Stop = function(self)
+        if self.Thread then
+            pcall(function() task.cancel(self.Thread) end)
+            self.Thread = nil
+        end
     end
+}
+
+-- Khởi chạy CombatController ngay khi load
+task.spawn(function()
+    task.wait(1) -- Chờ Engine boot xong
+    Engine.Modules.CombatController:Start()
 end)
 
--- ==========================================
--- [12] STANDALONE AUTO SKILL ENGINE (V8 PERFECT Q/E LOCK)
--- ==========================================
-task.spawn(function()
-    while task.wait(0.3) do
-        pcall(function()
-            if Engine.Modules.ConfigManager.Settings.AutoSkill then
-                local char = LocalPlayer.Character
-                if char and char:FindFirstChildOfClass("Humanoid") then
-                    local role = DeterminePlayerRole(LocalPlayer)
-                    Engine.State.CurrentRole = role
-
-                    if role == "ZOOKEEPER" then
-                        PressKey(Enum.KeyCode.Q)
-                    elseif role == "OOF" then
-                        PressKey(Enum.KeyCode.E)
-                    else
-                        local tool = char:FindFirstChildOfClass("Tool") or (LocalPlayer:FindFirstChild("Backpack") and LocalPlayer.Backpack:FindFirstChildOfClass("Tool"))
-                        if tool then
-                            local tName = tool.Name:lower()
-                            if tName:find("oof") or tName:find("claw") or tName:find("e") then
-                                PressKey(Enum.KeyCode.E)
-                            else
-                                PressKey(Enum.KeyCode.Q)
-                            end
-                        else
-                            PressKey(Enum.KeyCode.Q)
-                        end
-                    end
-                end
-            end
-        end)
-    end
+-- Reset CombatController khi Respawn
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    task.spawn(function()
+        task.wait(0.5) -- Chờ character load
+        Engine.Modules.CombatController:Reset()
+        Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
+    end)
 end)
 
 -- ==========================================
@@ -1977,22 +2086,9 @@ Engine.Modules.FarmManager = {
         end)
         table.insert(Engine.State.FarmConnections, scanThread)
         
-        local actionThread = task.spawn(function()
+        -- Auto Money (ProximityPrompt) — vẫn giữ trong Farm vì liên quan đến movement
+        local moneyThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
-                if Engine.State.CurrentRole == "OOF" and Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
-                    if Engine.Modules.ConfigManager.Settings.AutoSkill and tick() - self.LastActions.Skill > 3.2 then
-                        self.LastActions.Skill = tick()
-                        PressKey(Enum.KeyCode.E)
-                    end
-                end
-                
-                if Engine.State.CurrentRole == "ZOOKEEPER" and Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
-                    if Engine.Modules.ConfigManager.Settings.AutoSkill and tick() - self.LastActions.Skill > 2.5 then
-                        self.LastActions.Skill = tick()
-                        PressKey(Enum.KeyCode.Q)
-                    end
-                end
-                
                 if Engine.State.CurrentRole == "ZOOKEEPER" and Engine.Modules.ConfigManager.Settings.AutoMoney and tick() - self.LastActions.Prompt > 1.5 then
                     self.LastActions.Prompt = tick()
                     for _, item in ipairs(Engine.Cache.Prompts) do
@@ -2002,10 +2098,10 @@ Engine.Modules.FarmManager = {
                         end
                     end
                 end
-                task.wait(0.15)
+                task.wait(0.2)
             end
         end)
-        table.insert(Engine.State.FarmConnections, actionThread)
+        table.insert(Engine.State.FarmConnections, moneyThread)
         
         local farmLoop = Engine.Services.RunService.Heartbeat:Connect(function(dt)
             if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
@@ -2015,8 +2111,7 @@ Engine.Modules.FarmManager = {
             if not hrp then return end
             
             if hum then hum.PlatformStand = true end
-            hrp.AssemblyLinearVelocity = Vector3.zero
-            hrp.AssemblyAngularVelocity = Vector3.zero
+            -- Không reset AssemblyLinearVelocity vì BodyVelocity cần hoạt động tự do
             
             for _, part in ipairs(char:GetChildren()) do
                 if part:IsA("BasePart") then part.CanCollide = false end
@@ -2039,8 +2134,9 @@ Engine.Modules.FarmManager = {
             if Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
                 local targetPos = Engine.State.CurrentTarget.Position
                 local destination
+                local currentPos = hrp.Position
                 
-                if Engine.State.CurrentRole == "ZOOKEEPER" then
+                if Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL" then
                     local targetCFrame = Engine.State.CurrentTarget.CFrame
                     local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
                     
@@ -2055,64 +2151,48 @@ Engine.Modules.FarmManager = {
                         destination = defaultPos
                     end
                 elseif Engine.State.CurrentRole == "OOF" then
-                    -- KHI LÀ OOF: BAY THẲNG ĐẾN SÁT THÂN ZOOKEEPER (KHOẢNG CÁCH CẬN CHIẾN 2.5 STUDS) ĐỂ CÀO / DÙNG KỸ NĂNG E
-                    local targetCFrame = Engine.State.CurrentTarget.CFrame
-                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 2.5) + Vector3.new(0, 1, 0) + self.StuckTracker.OffsetVector
-                    
-                    if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
-                        local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
-                        if not hasLOS then
-                            destination = targetPos + Vector3.new(0, 10, 0) + self.StuckTracker.OffsetVector
-                        else
-                            destination = defaultPos
-                        end
-                    else
-                        destination = defaultPos
-                    end
+                    -- KHI LÀ OOF: BAY THẲNG LÊN TRỜI CAO (AUTOFARMHEIGHT STUDS) TRÊN ĐẦU ZOOKEEPER
+                    local farmHeight = Engine.Modules.ConfigManager.Settings.AutoFarmHeight or 700
+                    destination = Vector3.new(targetPos.X, targetPos.Y + farmHeight, targetPos.Z) + self.StuckTracker.OffsetVector
                 else
-                    destination = Vector3.new(targetPos.X, targetPos.Y + 5, targetPos.Z) + self.StuckTracker.OffsetVector
+                    return
                 end
                 
-                local currentPos = hrp.Position
                 local dist = (destination - currentPos).Magnitude
                 
-                if dist > 0.5 then
-                    local moveDir = (destination - currentPos).Unit
-                    local moveSpeed = Engine.Modules.ConfigManager.Settings.AutoFarmSpeed
-                    local step = moveDir * math.min(dist, moveSpeed * dt)
-                    hrp.CFrame = CFrame.lookAt(currentPos + step, targetPos)
-                else
-                    hrp.CFrame = CFrame.lookAt(currentPos, targetPos)
+                -- Di chuyển bằng BodyVelocity (nhất quán, không xung đột)
+                local farmBV = hrp:FindFirstChild("BodyVelocity")
+                if farmBV then
+                    if dist > 1 then
+                        local moveSpeed = Engine.Modules.ConfigManager.Settings.AutoFarmSpeed or 85
+                        local moveDir = (destination - currentPos).Unit
+                        farmBV.Velocity = moveDir * math.min(dist * 5, moveSpeed)
+                    else
+                        farmBV.Velocity = Vector3.zero
+                    end
+                end
+                
+                -- Xoay nhìn về target
+                if dist > 2 then
+                    hrp.CFrame = CFrame.new(currentPos, Vector3.new(targetPos.X, currentPos.Y, targetPos.Z))
                 end
                 
                 Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.25)
                 
-                -- TỰ ĐỘNG TẤN CÔNG & DÙNG KỸ NĂNG CHO CẢ ZOOKEEPER VÀ OOF
-                if Engine.Modules.ConfigManager.Settings.AutoAttack and tick() - self.LastActions.Attack > 0.05 then
-                    self.LastActions.Attack = tick()
-                    
-                    local tool = char:FindFirstChildOfClass("Tool")
-                    if not tool then
-                        local backpack = LocalPlayer:FindFirstChild("Backpack")
-                        if backpack then
-                            local gTool = backpack:FindFirstChildOfClass("Tool")
-                            if gTool and hum then hum:EquipTool(gTool) tool = gTool end
-                        end
-                    end
-                    
-                    if tool then tool:Activate() end
-                    TriggerMouseClick()
-
-                    -- NẾU LÀ OOF: TỰ ĐỘNG NHẤN PHÍM E (KỸ NĂNG CÀO/VỒ)
-                    if Engine.State.CurrentRole == "OOF" then
-                        PressKey(Enum.KeyCode.E)
-                    end
-                end
+                -- ATTACK & SKILL được xử lý hoàn toàn bởi CombatController
+                -- FarmManager chỉ lo di chuyển, không gọi attack/click ở đây
+            else
+                -- Không có target: đứng yên, tắt velocity
+                local farmBV = hrp:FindFirstChild("BodyVelocity")
+                if farmBV then farmBV.Velocity = Vector3.zero end
             end
         end)
         table.insert(Engine.State.FarmConnections, farmLoop)
         
-        Engine.Modules.NotificationManager:Notify("Zookeeper Hunter V8.0", "AI Auto Farm & Smart Wall Bypass Active!", 3)
+        local roleLabel = Engine.Modules.ConfigManager.Settings.ForceRole == "OOF" and "🔴 OOF Mode" 
+            or Engine.Modules.ConfigManager.Settings.ForceRole == "ZOOKEEPER" and "🔵 Zoo Mode"
+            or "⚡ Auto-Detect"
+        Engine.Modules.NotificationManager:Notify("🤖 Auto Farm V10.5", "Farm bắt đầu! Role: " .. roleLabel, 3)
     end,
     
     Stop = function(self)
@@ -2752,12 +2832,101 @@ Engine.Modules.UIController = {
         self:CreateSlider(pageCombat, dict.HITBOX_SIZE, 2, 25, "HitboxSize")
         
         -- Automation Tab
+        -- ===== FORCE ROLE SELECTOR (ZOO / OOF / AUTO) =====
+        local roleFrame = Instance.new("Frame")
+        roleFrame.Size = UDim2.new(1, -10, 0, 80)
+        roleFrame.BackgroundColor3 = Color3.fromRGB(12, 20, 38)
+        roleFrame.BackgroundTransparency = 0.2
+        roleFrame.ZIndex = 3
+        roleFrame.Parent = pageFarm
+        Instance.new("UICorner", roleFrame).CornerRadius = UDim.new(0, 14)
+        
+        local roleStroke = Instance.new("UIStroke")
+        roleStroke.Thickness = 1.5
+        roleStroke.Color = Color3.fromRGB(0, 240, 255)
+        roleStroke.Transparency = 0.4
+        roleStroke.Parent = roleFrame
+        table.insert(self.ChromaObjects, roleStroke)
+        
+        local roleTitle = Instance.new("TextLabel")
+        roleTitle.Size = UDim2.new(1, 0, 0, 24)
+        roleTitle.Position = UDim2.new(0, 0, 0, 4)
+        roleTitle.BackgroundTransparency = 1
+        roleTitle.Text = "⚡ CHỌN VAI TRÒ (Force Role)"
+        roleTitle.TextColor3 = Color3.fromRGB(0, 240, 255)
+        roleTitle.Font = Enum.Font.GothamBlack
+        roleTitle.TextSize = 11
+        roleTitle.ZIndex = 4
+        roleTitle.Parent = roleFrame
+        
+        local roleBtnContainer = Instance.new("Frame")
+        roleBtnContainer.Size = UDim2.new(1, -16, 0, 40)
+        roleBtnContainer.Position = UDim2.new(0, 8, 0, 32)
+        roleBtnContainer.BackgroundTransparency = 1
+        roleBtnContainer.ZIndex = 3
+        roleBtnContainer.Parent = roleFrame
+        Instance.new("UIListLayout", roleBtnContainer).FillDirection = Enum.FillDirection.Horizontal
+        
+        local roleDefs = {
+            {label = "🔵 ZOO", role = "ZOOKEEPER", colorOn = Color3.fromRGB(0, 200, 255), colorOff = Color3.fromRGB(25, 40, 70)},
+            {label = "🔴 OOF", role = "OOF",       colorOn = Color3.fromRGB(255, 60, 80),  colorOff = Color3.fromRGB(50, 18, 22)},
+            {label = "⚪ AUTO", role = "AUTO",      colorOn = Color3.fromRGB(120, 255, 160), colorOff = Color3.fromRGB(20, 35, 20)},
+        }
+        
+        local roleButtons = {}
+        local function updateRoleButtons(activeRole)
+            for _, rb in ipairs(roleButtons) do
+                local isActive = (rb.role == activeRole)
+                Engine.Services.TweenService:Create(rb.btn, TweenInfo.new(0.18), {
+                    BackgroundColor3 = isActive and rb.colorOn or rb.colorOff
+                }):Play()
+                rb.btn.TextColor3 = isActive and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(160, 180, 200)
+                rb.btn.Font = isActive and Enum.Font.GothamBlack or Enum.Font.Gotham
+            end
+        end
+        
+        for _, def in ipairs(roleDefs) do
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(0.31, 0, 1, 0)
+            btn.BackgroundColor3 = (Engine.Modules.ConfigManager.Settings.ForceRole == def.role) and def.colorOn or def.colorOff
+            btn.Text = def.label
+            btn.TextColor3 = (Engine.Modules.ConfigManager.Settings.ForceRole == def.role) and Color3.fromRGB(255,255,255) or Color3.fromRGB(160,180,200)
+            btn.Font = (Engine.Modules.ConfigManager.Settings.ForceRole == def.role) and Enum.Font.GothamBlack or Enum.Font.Gotham
+            btn.TextSize = 11
+            btn.ZIndex = 5
+            btn.Parent = roleBtnContainer
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+            
+            local entry = {btn = btn, role = def.role, colorOn = def.colorOn, colorOff = def.colorOff}
+            table.insert(roleButtons, entry)
+            
+            btn.MouseButton1Click:Connect(function()
+                Engine.Modules.AudioFX:Click()
+                Engine.Modules.ConfigManager.Settings.ForceRole = def.role
+                Engine.Modules.ConfigManager:Save()
+                updateRoleButtons(def.role)
+                -- Cập nhật role ngay lập tức
+                Engine.State.CurrentRole = (def.role == "AUTO") and DeterminePlayerRole(LocalPlayer) or def.role
+                -- Nếu đang farm thì restart để áp dụng vai trò mới
+                if Engine.Modules.ConfigManager.Settings.AutoFarm then
+                    Engine.Modules.FarmManager:Stop()
+                    task.wait(0.1)
+                    Engine.Modules.FarmManager:Start()
+                end
+                Engine.Modules.NotificationManager:Notify("⚡ Force Role", 
+                    def.role == "AUTO" and "Vai trò: Tự động nhận diện" or
+                    def.role == "ZOOKEEPER" and "Vai trò: 🔵 ZOO (Bắn OOF)" or
+                    "Vai trò: 🔴 OOF (Bay lên trời + nhấn E)", 2)
+            end)
+        end
+        -- ===== END FORCE ROLE =====
+        
         self:CreateToggle(pageFarm, dict.AUTO_FARM, "AutoFarm", function(v)
             if v then Engine.Modules.FarmManager:Start() else Engine.Modules.FarmManager:Stop() end
         end)
         self:CreateToggle(pageFarm, dict.WALL_BYPASS, "SmartWallBypass")
         self:CreateSlider(pageFarm, dict.FARM_SPEED, 30, 250, "AutoFarmSpeed")
-        self:CreateSlider(pageFarm, dict.FARM_HEIGHT, 50, 1500, "AutoFarmHeight")
+        self:CreateSlider(pageFarm, dict.FARM_HEIGHT, 100, 2000, "AutoFarmHeight")
         self:CreateToggle(pageFarm, dict.ANTI_STUCK, "AntiStuck")
         self:CreateToggle(pageFarm, dict.AUTO_MONEY, "AutoMoney")
         self:CreateToggle(pageFarm, dict.ANTI_AFK, "AntiAFK")
