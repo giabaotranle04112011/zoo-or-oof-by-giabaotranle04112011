@@ -508,7 +508,7 @@ Engine.Modules.LoadingScreen = {
 -- [5] KEY SYSTEM MODULE V10.5
 -- ==========================================
 Engine.Modules.KeySystem = {
-    KeyURL = "https://discord.gg/6Nfc7jGKP",
+    KeyURL = "https://getkeyfree24h.netlify.app/",
     RepoOwner = "giabaotranle04112011",
     RepoName = "getkey",
     FilePath = "keys.json",
@@ -744,7 +744,7 @@ Engine.Modules.KeySystem = {
         desc.Size = UDim2.new(1, -40, 0, 32)
         desc.Position = UDim2.new(0, 20, 0, 46)
         desc.BackgroundTransparency = 1
-        desc.Text = "Hãy vô Server Discord: https://discord.gg/6Nfc7jGKP để lấy Key của Bot dùng lệnh /help"
+        desc.Text = "Truy cập link bên dưới để lấy Key miễn phí 24h!"
         desc.Font = Enum.Font.GothamMedium
         desc.TextSize = 10
         desc.TextColor3 = Color3.fromRGB(180, 195, 215)
@@ -2600,9 +2600,9 @@ Engine.Modules.UIController = {
             Engine.Modules.AudioFX:Click()
             if setclipboard or toclipboard then
                 (setclipboard or toclipboard)(Engine.Modules.KeySystem.KeyURL)
-                Engine.Modules.NotificationManager:Notify("Discord Key Server", "✓ Đã sao chép Link Discord: https://discord.gg/6Nfc7jGKP", 3)
+                Engine.Modules.NotificationManager:Notify("🔑 Lấy Key", "✓ Đã sao chép link: https://getkeyfree24h.netlify.app/", 3)
             else
-                Engine.Modules.NotificationManager:Notify("Discord Key Server", "Link: https://discord.gg/6Nfc7jGKP", 4)
+                Engine.Modules.NotificationManager:Notify("🔑 Lấy Key", "Link: https://getkeyfree24h.netlify.app/", 4)
             end
         end)
 
