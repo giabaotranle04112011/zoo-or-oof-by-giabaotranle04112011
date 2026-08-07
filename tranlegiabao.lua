@@ -1061,9 +1061,8 @@ local function FastScanPlayers()
                     table.insert(Engine.Cache.Oofs, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "OOF"})
                 elseif role == "ZOOKEEPER" then
                     table.insert(Engine.Cache.Zookeepers, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "ZOOKEEPER"})
-                else
-                    table.insert(Engine.Cache.Oofs, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "NEUTRAL"})
                 end
+                -- CHÚ Ý: KHÔNG bao giờ cho người thường (NEUTRAL) vào danh sách OOF!
             end
         end
     end
@@ -1081,9 +1080,9 @@ local function FastScanPlayers()
     end
 end
 
--- BẬT SCANNER TỰ ĐỘNG CHẠY LIÊN TỤC ĐỂ ESP HOẠT ĐỘNG NGAY LẬP TỨC
+-- BẬT SCANNER SIÊU TỐC QUÉT MAP 0.1 GIÂY / LẦN DỰA THEO THỜI GIAN THỰC
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.1) do
         pcall(FastScanPlayers)
     end
 end)
@@ -1104,7 +1103,7 @@ local function SlowScanPrompts()
 end
 
 task.spawn(function()
-    while task.wait(4) do
+    while task.wait(3) do
         SlowScanPrompts()
     end
 end)
@@ -1116,7 +1115,7 @@ local function GetBestTarget()
     local myPos = hrp.Position
     
     local myRole = DeterminePlayerRole(LocalPlayer)
-    -- NẾU LÀ NEUTRAL (NGƯỜI THƯỜNG / DÂN THƯỜNG): KHÔNG CHỌN MỤC TIÊU (ĐỨNG YÊN 1 CHỖ!)
+    -- NẾU LÀ NEUTRAL (NGƯỜI THƯỜNG): KHÔNG CHỌN MỤC TIÊU (ĐỨNG YÊN 1 CHỖ)
     if myRole == "NEUTRAL" then
         Engine.State.TargetModel = nil
         return nil
@@ -1153,7 +1152,17 @@ local function IsTargetValid(target)
     if not hum or hum.Health <= 0 then return false end
     
     local plr = Engine.Services.Players:GetPlayerFromCharacter(target.Parent)
-    if plr and CheckIsProtectedOrNeutral(plr) then return false end
+    if plr then
+        if CheckIsProtectedOrNeutral(plr) then return false end
+        
+        -- KIỂM TRA CHÍNH XÁC VAI TRÒ CỦA TARGET SO VỚI BẢN THÂN
+        local myRole = DeterminePlayerRole(LocalPlayer)
+        local targetRole = DeterminePlayerRole(plr)
+        
+        if targetRole == "NEUTRAL" then return false end -- Người thường/Reset không bao giờ là mục tiêu
+        if myRole == "ZOOKEEPER" and targetRole ~= "OOF" then return false end -- Zoo chỉ săn OOF
+        if myRole == "OOF" and targetRole ~= "ZOOKEEPER" then return false end -- OOF chỉ săn Zoo
+    end
     
     return true
 end
@@ -1913,12 +1922,18 @@ Engine.Modules.FarmManager = {
         local scanThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
                 Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
+                pcall(FastScanPlayers)
                 
                 if not IsTargetValid(Engine.State.CurrentTarget) then
                     if Engine.State.CurrentTarget ~= nil then
                         Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
                     end
                     Engine.State.CurrentTarget = GetBestTarget()
+                else
+                    local freshTarget = GetBestTarget()
+                    if freshTarget and freshTarget ~= Engine.State.CurrentTarget then
+                        Engine.State.CurrentTarget = freshTarget
+                    end
                 end
                 task.wait(0.1)
             end
@@ -2230,27 +2245,27 @@ Engine.Modules.UIController = {
             self.MainFrame.Visible = not self.MainFrame.Visible
         end)
         
-        -- Main Frame — Ultra Glass Rainbow (Transparent + RGB Chroma)
+        -- Main Frame — Ultra Frosted White Glass (Transparent White Aesthetic)
         self.MainFrame = Instance.new("Frame")
         self.MainFrame.Size = UDim2.new(0, 740, 0, 460)
         self.MainFrame.Position = UDim2.new(0.5, -370, 0.5, -230)
-        self.MainFrame.BackgroundColor3 = Color3.fromRGB(10, 16, 32)
-        self.MainFrame.BackgroundTransparency = 0.35
+        self.MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        self.MainFrame.BackgroundTransparency = 0.72
         self.MainFrame.Active = true
         self.MainFrame.Draggable = true
         self.MainFrame.ClipsDescendants = true
         self.MainFrame.Parent = sg
         Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 24)
 
-        -- Glass Rainbow Stroke Outline (RGB Chroma Border)
+        -- Glass White Stroke Outline
         local mainStroke = Instance.new("UIStroke")
         mainStroke.Thickness = 2
-        mainStroke.Transparency = 0.1
-        mainStroke.Color = Color3.fromRGB(0, 240, 255)
+        mainStroke.Transparency = 0.3
+        mainStroke.Color = Color3.fromRGB(255, 255, 255)
         mainStroke.Parent = self.MainFrame
         table.insert(self.ChromaObjects, mainStroke)
 
-        -- Top glossy light reflection (UICorner added to prevent sticking out)
+        -- Top glossy light reflection
         local glassShine = Instance.new("Frame")
         glassShine.Size = UDim2.new(1, 0, 0, 80)
         glassShine.Position = UDim2.new(0, 0, 0, 0)
@@ -2267,7 +2282,7 @@ Engine.Modules.UIController = {
             ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
         })
         shineGrad.Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0.90),
+            NumberSequenceKeypoint.new(0, 0.70),
             NumberSequenceKeypoint.new(1, 1.0),
         })
         shineGrad.Parent = glassShine
@@ -2277,16 +2292,16 @@ Engine.Modules.UIController = {
         accentBar.Size = UDim2.new(1, 0, 0, 2)
         accentBar.Position = UDim2.new(0, 0, 0, 70)
         accentBar.BorderSizePixel = 0
-        accentBar.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        accentBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         accentBar.ZIndex = 5
         accentBar.Parent = self.MainFrame
         table.insert(self.ChromaObjects, accentBar)
         
-        -- Header Bar (UICorner added so corners NEVER stick out!)
+        -- Header Bar (Frosted White Glass Header)
         local topBar = Instance.new("Frame")
         topBar.Size = UDim2.new(1, 0, 0, 70)
-        topBar.BackgroundColor3 = Color3.fromRGB(15, 25, 45)
-        topBar.BackgroundTransparency = 0.55
+        topBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        topBar.BackgroundTransparency = 0.82
         topBar.BorderSizePixel = 0
         topBar.ZIndex = 2
         topBar.Parent = self.MainFrame
@@ -2491,17 +2506,17 @@ Engine.Modules.UIController = {
         tabContainer.Size = UDim2.new(0, 172, 1, -24)
         tabContainer.Position = UDim2.new(0, 12, 0, 12)
         tabContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        tabContainer.BackgroundTransparency = 0.92
+        tabContainer.BackgroundTransparency = 0.80
         tabContainer.ClipsDescendants = true
         tabContainer.ZIndex = 3
         tabContainer.Parent = parent
         Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 16)
 
-        -- Glass border (Rainbow Chroma)
+        -- Glass White Border
         local tabStroke = Instance.new("UIStroke")
         tabStroke.Thickness = 1.5
-        tabStroke.Color = Color3.fromRGB(0, 240, 255)
-        tabStroke.Transparency = 0.4
+        tabStroke.Color = Color3.fromRGB(255, 255, 255)
+        tabStroke.Transparency = 0.45
         tabStroke.Parent = tabContainer
         table.insert(self.ChromaObjects, tabStroke)
 
@@ -2509,7 +2524,7 @@ Engine.Modules.UIController = {
         local tabShine = Instance.new("Frame")
         tabShine.Size = UDim2.new(1, 0, 0, 36)
         tabShine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        tabShine.BackgroundTransparency = 0.93
+        tabShine.BackgroundTransparency = 0.85
         tabShine.BorderSizePixel = 0
         tabShine.ZIndex = 4
         tabShine.Parent = tabContainer
@@ -2542,9 +2557,9 @@ Engine.Modules.UIController = {
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, 0, 0, 42)
             btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            btn.BackgroundTransparency = first and 0.82 or 1
+            btn.BackgroundTransparency = first and 0.68 or 1
             btn.Text = name
-            btn.TextColor3 = first and Color3.fromRGB(240, 248, 255) or Color3.fromRGB(140, 158, 190)
+            btn.TextColor3 = first and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(210, 225, 245)
             btn.Font = Enum.Font.GothamBold
             btn.TextSize = 12
             btn.TextXAlignment = Enum.TextXAlignment.Left
@@ -2552,11 +2567,11 @@ Engine.Modules.UIController = {
             btn.Parent = tabContainer
             Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
 
-            -- Pill border bên TRONG button (không trò ra ngoài)
+            -- Pill border bên TRONG button
             local pill = Instance.new("Frame")
             pill.Size = UDim2.new(0, 3, 0, 22)
             pill.Position = UDim2.new(0, 0, 0.5, -11)
-            pill.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+            pill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
             pill.BorderSizePixel = 0
             pill.Visible = first
             pill.ZIndex = 6
@@ -2572,12 +2587,12 @@ Engine.Modules.UIController = {
             if first then
                 local activeBg = Instance.new("UIGradient")
                 activeBg.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 200, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 0, 255)),
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
                 })
                 activeBg.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.85),
-                    NumberSequenceKeypoint.new(1, 0.95),
+                    NumberSequenceKeypoint.new(0, 0.65),
+                    NumberSequenceKeypoint.new(1, 0.85),
                 })
                 activeBg.Rotation = 90
                 activeBg.Parent = btn
@@ -2613,26 +2628,24 @@ Engine.Modules.UIController = {
                 Engine.Modules.AudioFX:Click()
                 for _, p in pairs(pages) do p.Visible = false end
                 for i, b in pairs(tabButtons) do
-                    b.TextColor3 = Color3.fromRGB(140, 158, 190)
+                    b.TextColor3 = Color3.fromRGB(210, 225, 245)
                     b.BackgroundTransparency = 1
-                    -- xóa gradient cũ
                     local g = b:FindFirstChildOfClass("UIGradient")
                     if g then g:Destroy() end
                     if tabPills[i] then tabPills[i].Visible = false end
                 end
                 page.Visible = true
-                btn.TextColor3 = Color3.fromRGB(240, 248, 255)
-                btn.BackgroundTransparency = 0.82
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.BackgroundTransparency = 0.68
                 pill.Visible = true
-                -- thêm gradient active
                 local g2 = Instance.new("UIGradient")
                 g2.Color = ColorSequence.new({
-                    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 200, 255)),
-                    ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 0, 255)),
+                    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+                    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
                 })
                 g2.Transparency = NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 0.85),
-                    NumberSequenceKeypoint.new(1, 0.95),
+                    NumberSequenceKeypoint.new(0, 0.65),
+                    NumberSequenceKeypoint.new(1, 0.85),
                 })
                 g2.Rotation = 90
                 g2.Parent = btn
@@ -3622,15 +3635,15 @@ Engine.Modules.UIController = {
     CreateToggle = function(self, parent, text, configKey, callback)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -10, 0, 46)
-        frame.BackgroundColor3 = Color3.fromRGB(20, 32, 58)
-        frame.BackgroundTransparency = 0.45
+        frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        frame.BackgroundTransparency = 0.82
         frame.ZIndex = 3
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
 
         local cardStroke = Instance.new("UIStroke")
         cardStroke.Thickness = 1
-        cardStroke.Color = Color3.fromRGB(0, 240, 255)
+        cardStroke.Color = Color3.fromRGB(255, 255, 255)
         cardStroke.Transparency = 0.6
         cardStroke.Parent = frame
         table.insert(self.ChromaObjects, cardStroke)
@@ -3696,15 +3709,15 @@ Engine.Modules.UIController = {
     CreateSlider = function(self, parent, text, min, max, configKey)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -10, 0, 62)
-        frame.BackgroundColor3 = Color3.fromRGB(20, 32, 58)
-        frame.BackgroundTransparency = 0.45
+        frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        frame.BackgroundTransparency = 0.82
         frame.ZIndex = 3
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
 
         local cardStroke = Instance.new("UIStroke")
         cardStroke.Thickness = 1
-        cardStroke.Color = Color3.fromRGB(0, 240, 255)
+        cardStroke.Color = Color3.fromRGB(255, 255, 255)
         cardStroke.Transparency = 0.6
         cardStroke.Parent = frame
         table.insert(self.ChromaObjects, cardStroke)
