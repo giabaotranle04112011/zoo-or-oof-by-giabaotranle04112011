@@ -975,73 +975,97 @@ end
 local function DeterminePlayerRole(plr)
     if not plr then return "NEUTRAL" end
     
-    if typeof(plr) == "Instance" and plr:IsA("Model") then
-        local p = Engine.Services.Players:GetPlayerFromCharacter(plr)
-        if p then plr = p else return "NEUTRAL" end
+    local char = nil
+    if typeof(plr) == "Instance" then
+        if plr:IsA("Player") then
+            char = plr.Character
+        elseif plr:IsA("Model") then
+            char = plr
+            local p = Engine.Services.Players:GetPlayerFromCharacter(plr)
+            if p then plr = p end
+        end
     end
     
-    if typeof(plr) ~= "Instance" or not plr:IsA("Player") then
-        return "NEUTRAL"
+    if not char then return "NEUTRAL" end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Head")
+    if not hum or hum.Health <= 0 or not hrp then return "NEUTRAL" end
+
+    -- 1. Kiểm tra ForceField (Khi mới hồi sinh/trong khi bảo vệ tân thủ)
+    for _, child in ipairs(char:GetChildren()) do
+        if child:IsA("ForceField") or child.Name:lower():find("shield") or child.Name:lower():find("protection") then
+            return "NEUTRAL"
+        end
     end
-    
-    if CheckIsProtectedOrNeutral(plr) then
-        if plr ~= LocalPlayer then return "NEUTRAL" end
-    end
-    
-    local char = plr.Character
+
     local isZoo, isOof = false, false
-    
-    -- 1. Kiểm tra Tên Team
-    if plr.Team then
+
+    -- 2. Kiểm tra Team của Player (nếu là Player)
+    if typeof(plr) == "Instance" and plr:IsA("Player") and plr.Team then
         local tName = plr.Team.Name:lower()
         if tName:find("zoo") or tName:find("keeper") or tName:find("human") or tName:find("guard") or tName:find("hunter") then
             isZoo = true
-        elseif tName:find("oof") or tName:find("animal") or tName:find("beast") then
+        elseif tName:find("oof") or tName:find("animal") or tName:find("beast") or tName:find("infected") or tName:find("monster") then
             isOof = true
         end
     end
-    
-    -- 2. Kiểm tra Attributes
+
+    -- 3. Kiểm tra Attributes trên Player hoặc Character Model
     if not isZoo and not isOof then
-        local attrRole = plr:GetAttribute("Role") or plr:GetAttribute("Team")
+        local attrRole = (typeof(plr) == "Instance" and plr:IsA("Player") and (plr:GetAttribute("Role") or plr:GetAttribute("Team"))) or char:GetAttribute("Role") or char:GetAttribute("Team")
         if attrRole then
             local rStr = tostring(attrRole):lower()
             if rStr:find("zoo") or rStr:find("keeper") then isZoo = true
-            elseif rStr:find("oof") or rStr:find("animal") then isOof = true end
+            elseif rStr:find("oof") or rStr:find("animal") or rStr:find("beast") then isOof = true end
         end
     end
-    
-    -- 3. Kiểm tra Vũ khí trên tay (Equipped Tools) & Ba lô (Backpack)
-    if char then
+
+    -- 4. Kiểm tra Tên Model / Tên Nhân vật
+    if not isZoo and not isOof then
+        local mName = char.Name:lower()
+        if mName:find("oof") or mName:find("animal") or mName:find("beast") or mName:find("bear") or mName:find("wolf") or mName:find("lion") or mName:find("tiger") or mName:find("dino") or mName:find("cat") or mName:find("dog") or mName:find("gorilla") or mName:find("monster") then
+            isOof = true
+        end
+    end
+
+    -- 5. Kiểm tra Vũ khí trên tay & Ba lô
+    if not isZoo and not isOof then
         for _, tool in ipairs(char:GetChildren()) do
             if tool:IsA("Tool") then
                 local n = tool.Name:lower()
                 if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") or n:find("laser") then
                     isZoo = true
-                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") then
+                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") then
                     isOof = true
                 end
             end
         end
-    end
-    
-    local backpack = plr:FindFirstChild("Backpack")
-    if backpack then
-        for _, tool in ipairs(backpack:GetChildren()) do
-            if tool:IsA("Tool") then
-                local n = tool.Name:lower()
-                if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") then
-                    isZoo = true
-                elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") then
-                    isOof = true
+        
+        if typeof(plr) == "Instance" and plr:IsA("Player") then
+            local backpack = plr:FindFirstChild("Backpack")
+            if backpack then
+                for _, tool in ipairs(backpack:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        local n = tool.Name:lower()
+                        if n:find("gun") or n:find("tranq") or n:find("taser") or n:find("rifle") or n:find("shotgun") or n:find("pistol") or n:find("weapon") or n:find("baton") or n:find("spear") then
+                            isZoo = true
+                        elseif n:find("claw") or n:find("bite") or n:find("paw") or n:find("oof") or n:find("attack") then
+                            isOof = true
+                        end
+                    end
                 end
             end
         end
     end
-    
+
     if isZoo then return "ZOOKEEPER" end
     if isOof then return "OOF" end
-    
+
+    -- 6. NẾU LÀ PLAYER KHÁC VÀ KHÔNG PHẢI ZOOKEEPER -> HỌ LÀ OOF ĐỂ ZOOKEEPER SẮN
+    if typeof(plr) == "Instance" and plr:IsA("Player") and plr ~= LocalPlayer then
+        return "OOF"
+    end
+
     return "NEUTRAL"
 end
 
@@ -1813,7 +1837,7 @@ Engine.Modules.HunterHUD = {
 }
 
 -- ==========================================
--- [11] STANDALONE AUTO ATTACK / AUTO SHOOT ENGINE (50 CPS - ZOOKEEPER ONLY AUTO-TOGGLE)
+-- [11] STANDALONE AUTO ATTACK ENGINE (ZOOKEEPER: GUN 50 CPS | OOF: CLAW + E SKILL 50 CPS)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.02) do
@@ -1821,16 +1845,18 @@ task.spawn(function()
             local currentRole = DeterminePlayerRole(LocalPlayer)
             Engine.State.CurrentRole = currentRole
 
-            -- NẾU LÀ OOF HOẶC NGƯỜI THƯỜNG (NEUTRAL): TỰ ĐỘNG TẮT HOÀN TOÀN
-            if currentRole == "OOF" or currentRole == "NEUTRAL" then
+            -- CHỈ TẮT KHI LÀ NGƯỜI THƯỜNG (NEUTRAL)
+            if currentRole == "NEUTRAL" then
                 return
             end
             
-            -- NẾU LÀ ZOOKEEPER: TỰ ĐỘNG BẬT VÀ BẮN/CLICK 50 CPS LIÊN TỤC
-            if currentRole == "ZOOKEEPER" then
+            local autoAttackEnabled = Engine.Modules.ConfigManager.Settings.AutoAttack
+            local autoFarmEnabled = Engine.Modules.ConfigManager.Settings.AutoFarm
+            
+            if autoAttackEnabled or autoFarmEnabled or currentRole == "ZOOKEEPER" or currentRole == "OOF" then
                 local char = LocalPlayer.Character
                 if char then
-                    -- 1. Tự động lấy súng/vũ khí ra tay nếu đang cất trong ba lô
+                    -- 1. Tự động lấy vũ khí (Súng / Móng cào) ra tay nếu đang cất trong ba lô
                     local tool = char:FindFirstChildOfClass("Tool")
                     if not tool then
                         local backpack = LocalPlayer:FindFirstChild("Backpack")
@@ -1844,13 +1870,13 @@ task.spawn(function()
                         end
                     end
                     
-                    -- 2. Tự động nhả đạn & bắn RemoteEvent vũ khí
+                    -- 2. Thực thi tấn công & RemoteEvent của vũ khí
                     if tool then
                         tool:Activate()
                         for _, v in ipairs(tool:GetDescendants()) do
                             if v:IsA("RemoteEvent") then
                                 local n = v.Name:lower()
-                                if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") then
+                                if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") or n:find("slash") or n:find("hit") then
                                     if Engine.State.CurrentTarget then
                                         pcall(function() v:FireServer(Engine.State.CurrentTarget.Position) end)
                                         pcall(function() v:FireServer(Engine.State.CurrentTarget) end)
@@ -1862,7 +1888,12 @@ task.spawn(function()
                         end
                     end
                     
-                    -- 3. Click chuột trái thật siêu tốc 50 lần/giây (50 CPS)
+                    -- 3. NẾU LÀ OOF: TỰ ĐỘNG TẤN CÔNG KỸ NĂNG E
+                    if currentRole == "OOF" then
+                        PressKey(Enum.KeyCode.E)
+                    end
+                    
+                    -- 4. Click chuột trái thật siêu tốc 50 lần/giây (50 CPS)
                     TriggerMouseClick()
                 end
             end
@@ -2009,7 +2040,7 @@ Engine.Modules.FarmManager = {
                 local targetPos = Engine.State.CurrentTarget.Position
                 local destination
                 
-                if Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL" then
+                if Engine.State.CurrentRole == "ZOOKEEPER" then
                     local targetCFrame = Engine.State.CurrentTarget.CFrame
                     local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
                     
@@ -2023,8 +2054,23 @@ Engine.Modules.FarmManager = {
                     else
                         destination = defaultPos
                     end
+                elseif Engine.State.CurrentRole == "OOF" then
+                    -- KHI LÀ OOF: BAY THẲNG ĐẾN SÁT THÂN ZOOKEEPER (KHOẢNG CÁCH CẬN CHIẾN 2.5 STUDS) ĐỂ CÀO / DÙNG KỸ NĂNG E
+                    local targetCFrame = Engine.State.CurrentTarget.CFrame
+                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 2.5) + Vector3.new(0, 1, 0) + self.StuckTracker.OffsetVector
+                    
+                    if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
+                        local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
+                        if not hasLOS then
+                            destination = targetPos + Vector3.new(0, 10, 0) + self.StuckTracker.OffsetVector
+                        else
+                            destination = defaultPos
+                        end
+                    else
+                        destination = defaultPos
+                    end
                 else
-                    destination = Vector3.new(targetPos.X, targetPos.Y + Engine.Modules.ConfigManager.Settings.AutoFarmHeight, targetPos.Z) + self.StuckTracker.OffsetVector
+                    destination = Vector3.new(targetPos.X, targetPos.Y + 5, targetPos.Z) + self.StuckTracker.OffsetVector
                 end
                 
                 local currentPos = hrp.Position
@@ -2041,7 +2087,8 @@ Engine.Modules.FarmManager = {
                 
                 Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.25)
                 
-                if (Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL") and Engine.Modules.ConfigManager.Settings.AutoAttack and tick() - self.LastActions.Attack > 0.08 then
+                -- TỰ ĐỘNG TẤN CÔNG & DÙNG KỸ NĂNG CHO CẢ ZOOKEEPER VÀ OOF
+                if Engine.Modules.ConfigManager.Settings.AutoAttack and tick() - self.LastActions.Attack > 0.05 then
                     self.LastActions.Attack = tick()
                     
                     local tool = char:FindFirstChildOfClass("Tool")
@@ -2055,6 +2102,11 @@ Engine.Modules.FarmManager = {
                     
                     if tool then tool:Activate() end
                     TriggerMouseClick()
+
+                    -- NẾU LÀ OOF: TỰ ĐỘNG NHẤN PHÍM E (KỸ NĂNG CÀO/VỒ)
+                    if Engine.State.CurrentRole == "OOF" then
+                        PressKey(Enum.KeyCode.E)
+                    end
                 end
             end
         end)
