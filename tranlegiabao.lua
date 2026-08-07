@@ -15,11 +15,42 @@ local Engine = {
     
     GetLogoAsset = function(self)
         local getasset = getcustomasset or getsynasset or custom_asset
-        if getasset and isfile then
-            if isfile("bun.jpg") then
-                local ok, asset = pcall(function() return getasset("bun.jpg") end)
-                if ok and asset then return asset end
+        if not getasset then return nil end
+
+        -- Tự động tải file bun.jpg từ GitHub nếu chưa có trong Workspace local
+        if isfile and writefile and not isfile("bun.jpg") then
+            local repoUrls = {
+                "https://raw.githubusercontent.com/giabaotranle04112011/getkey/main/bun.jpg",
+                "https://raw.githubusercontent.com/giabaotranle04112011/rbzoo/main/bun.jpg",
+                "https://raw.githubusercontent.com/giabaotranle04112011/tranlegiabao/main/bun.jpg"
+            }
+            local httpRequest = (syn and syn.request) or (http and http.request) or request or http_request
+            for _, logoUrl in ipairs(repoUrls) do
+                local imageBytes = nil
+                if httpRequest then
+                    pcall(function()
+                        local res = httpRequest({ Url = logoUrl, Method = "GET" })
+                        if res and res.Success and res.Body and #res.Body > 100 then
+                            imageBytes = res.Body
+                        end
+                    end)
+                end
+                if not imageBytes then
+                    pcall(function()
+                        local b = game:HttpGet(logoUrl)
+                        if b and #b > 100 then imageBytes = b end
+                    end)
+                end
+                if imageBytes then
+                    pcall(function() writefile("bun.jpg", imageBytes) end)
+                    break
+                end
             end
+        end
+
+        if isfile and isfile("bun.jpg") then
+            local ok, asset = pcall(function() return getasset("bun.jpg") end)
+            if ok and asset then return asset end
         end
         return nil
     end
@@ -1599,11 +1630,20 @@ Engine.Modules.UIController = {
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         
+        local logoGlowRing = Instance.new("Frame")
+        logoGlowRing.Size = UDim2.new(0, 64, 0, 64)
+        logoGlowRing.Position = UDim2.new(0, 17, 0.5, -32)
+        logoGlowRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        logoGlowRing.BackgroundTransparency = 0.85
+        logoGlowRing.Parent = sg
+        Instance.new("UICorner", logoGlowRing).CornerRadius = UDim.new(1, 0)
+        table.insert(self.ChromaObjects, logoGlowRing)
+
         self.LogoButton = Instance.new("TextButton")
         self.LogoButton.Size = UDim2.new(0, 58, 0, 58)
         self.LogoButton.Position = UDim2.new(0, 20, 0.5, -29)
         self.LogoButton.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
-        self.LogoButton.BackgroundTransparency = 0.15
+        self.LogoButton.BackgroundTransparency = 0.1
         self.LogoButton.Text = ""
         self.LogoButton.Active = true
         self.LogoButton.Draggable = true
@@ -1623,17 +1663,17 @@ Engine.Modules.UIController = {
             local logoText = Instance.new("TextLabel")
             logoText.Size = UDim2.new(1, 0, 1, 0)
             logoText.BackgroundTransparency = 1
-            logoText.Text = "CLASS\nQUID"
+            logoText.Text = "⚡ CLASS\nQUID"
             logoText.Font = Enum.Font.GothamBlack
             logoText.TextColor3 = Color3.fromRGB(0, 240, 255)
-            logoText.TextSize = 11
+            logoText.TextSize = 10
             logoText.Parent = self.LogoButton
             table.insert(self.ChromaObjects, logoText)
         end
         
         local logoStroke = Instance.new("UIStroke")
-        logoStroke.Thickness = 2
-        logoStroke.Transparency = 0.2
+        logoStroke.Thickness = 2.5
+        logoStroke.Transparency = 0.15
         logoStroke.Parent = self.LogoButton
         table.insert(self.ChromaObjects, logoStroke)
         table.insert(self.ChromaObjects, self.LogoButton)
