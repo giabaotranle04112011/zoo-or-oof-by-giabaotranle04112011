@@ -1864,164 +1864,115 @@ Engine.Modules.HunterHUD = {
 -- ==========================================
 Engine.Modules.CombatController = {
     State = {
-        LastAttack = 0,  -- Timestamp lần attack cuối
-        LastSkill  = 0,  -- Timestamp lần dùng kỹ năng cuối (E / Q)
-        LastEquip  = 0,  -- Timestamp lần equip cuối
+        LastAttack = 0,
+        LastSkill  = 0,
+        LastEquip  = 0,
     },
     Thread = nil,
-    
-    -- Tự động Equip Tool từ Backpack nếu Character chưa cầm
+
     AutoEquip = function(self, char, hum)
         if not char or not hum or hum.Health <= 0 then return nil end
         local tool = char:FindFirstChildOfClass("Tool")
         if tool then return tool end
-        
-        -- Cooldown equip (tránh spam equip)
         if tick() - self.State.LastEquip < 0.5 then return nil end
         self.State.LastEquip = tick()
-        
         local backpack = LocalPlayer:FindFirstChild("Backpack")
         if backpack then
             local gTool = backpack:FindFirstChildOfClass("Tool")
             if gTool then
                 pcall(function() hum:EquipTool(gTool) end)
-                task.wait(0.05) -- Chờ equip xong
+                task.wait(0.05)
                 return char:FindFirstChildOfClass("Tool")
             end
         end
         return nil
     end,
-    
-    -- Kiểm tra safety trước khi attack
+
     CanAttack = function(self)
         local char = LocalPlayer.Character
         if not char then return false, nil, nil end
         local hum = char:FindFirstChildOfClass("Humanoid")
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hum or hum.Health <= 0 or not hrp then return false, nil, nil end
-        
         local role = Engine.State.CurrentRole
         if role == "NEUTRAL" then return false, nil, nil end
         if not Engine.Modules.ConfigManager.Settings.AutoAttack then return false, nil, nil end
-        
-        -- Phải có target hợp lệ mới attack (tránh spam click vô mục đích)
         local target = Engine.State.CurrentTarget
         if not target or not IsTargetValid(target) then return false, nil, nil end
-        
         return true, char, hum
     end,
-    
-    -- Thực thi Attack (dùng chung cho Zoo và Oof)
-    DoAttack = function(self, char, hum, role)
-        -- Equip tool
+
+    DoAttack = function(self, char, hum)
         local tool = self:AutoEquip(char, hum)
         if not tool then
-            -- Không có tool nhưng vẫn click (một số game không cần tool)
             TriggerMouseClick()
             return
         end
-        
-        -- Activate tool
         pcall(function() tool:Activate() end)
-        
-        -- Fire RemoteEvents nếu có (hỗ trợ tool có server logic)
-        local target = Engine.State.CurrentTarget
-        for _, v in ipairs(tool:GetDescendants()) do
-            if v:IsA("RemoteEvent") then
-                local n = v.Name:lower()
-                if n:find("fire") or n:find("shoot") or n:find("use") or n:find("attack") or n:find("action") or n:find("slash") or n:find("hit") then
-                    pcall(function()
-                        if target and target.Parent then
-                            v:FireServer(target.Position)
-                        else
-                            v:FireServer()
-                        end
-                    end)
-                end
-            end
-        end
-        
-        -- Click chuột trái
         TriggerMouseClick()
     end,
-    
-    -- Zookeeper Attack Logic
+
     ZookeeperAttack = function(self, char, hum)
-        -- Attack cooldown: 0.1s (10 CPS) — đủ để Roblox xử lý gun
         if tick() - self.State.LastAttack < 0.1 then return end
         self.State.LastAttack = tick()
-        self:DoAttack(char, hum, "ZOOKEEPER")
-        
-        -- Zookeeper KHÔNG nhấn E
+        self:DoAttack(char, hum)
+        -- ZOOKEEPER không nhấn E
     end,
-    
-    -- OOF Attack Logic  
+
     OofAttack = function(self, char, hum)
-        -- Attack cooldown: 0.15s cho claw (hơi chậm hơn gun)
         if tick() - self.State.LastAttack < 0.15 then return end
         self.State.LastAttack = tick()
-        self:DoAttack(char, hum, "OOF")
-        -- OOF: không gọi E ở đây — E được gọi riêng ở AutoSkill
+        self:DoAttack(char, hum)
+        -- E được gọi riêng ở AutoSkill
     end,
-    
-    -- Auto Skill (E hoặc Q) — timer HOÀN TOÀN độc lập với Attack
+
+    -- Auto Skill — timer HOÀN TOÀN độc lập với Attack
     AutoSkill = function(self, char, hum, role)
         if not Engine.Modules.ConfigManager.Settings.AutoSkill then return end
-        
         if role == "OOF" then
-            -- E cooldown: 0.25s
             if tick() - self.State.LastSkill < 0.25 then return end
             self.State.LastSkill = tick()
             PressKey(Enum.KeyCode.E)
-            
         elseif role == "ZOOKEEPER" then
-            -- Q cooldown: 2.5s (skill Q của Zookeeper thường có cooldown dài)
             if tick() - self.State.LastSkill < 2.5 then return end
             self.State.LastSkill = tick()
             PressKey(Enum.KeyCode.Q)
         end
+        -- NEUTRAL: không nhấn gì cả
     end,
-    
-    -- Reset toàn bộ CombatState (gọi khi Respawn)
+
     Reset = function(self)
         self.State.LastAttack = 0
         self.State.LastSkill  = 0
         self.State.LastEquip  = 0
         Engine.State.CurrentTarget = nil
     end,
-    
-    -- Khởi chạy CombatController (1 thread duy nhất)
+
     Start = function(self)
-        -- Ngăn chạy 2 lần
         if self.Thread then
             pcall(function() task.cancel(self.Thread) end)
             self.Thread = nil
         end
-        
         self.Thread = task.spawn(function()
             while true do
-                task.wait(0.02) -- 50 tick/giây — đủ responsive
+                task.wait(0.02)
                 pcall(function()
                     local ok, char, hum = self:CanAttack()
                     if not ok then return end
-                    
                     local role = Engine.State.CurrentRole
-                    
                     if role == "ZOOKEEPER" then
                         self:ZookeeperAttack(char, hum)
                         self:AutoSkill(char, hum, "ZOOKEEPER")
-                        
                     elseif role == "OOF" then
                         self:OofAttack(char, hum)
                         self:AutoSkill(char, hum, "OOF")
-                        
-                    -- NEUTRAL: không làm gì cả
                     end
+                    -- NEUTRAL: không làm gì cả
                 end)
             end
         end)
     end,
-    
+
     Stop = function(self)
         if self.Thread then
             pcall(function() task.cancel(self.Thread) end)
@@ -2046,167 +1997,391 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
 end)
 
 -- ==========================================
--- [13] FARM ENGINE V8 ULTIMATE (SMART WALL BYPASS & REAL-TIME HUNTER AI)
+-- [13] FARM ENGINE V11 — STATE MACHINE
+-- Farm: TargetManager + MovementController + AntiStuck V2
+-- CombatController: AutoEquip + Attack + Skill (chỉ CombatController mới được click)
+-- States: IDLE → SCANNING → TARGET_LOCKED → MOVING → IN_RANGE → ATTACKING → TARGET_LOST → RECOVERY
 -- ==========================================
 Engine.Modules.FarmManager = {
-    StuckTracker = { LastPos = Vector3.zero, StuckTime = 0, OffsetVector = Vector3.zero },
-    LastActions = { Attack = 0, Skill = 0, Prompt = 0 },
-    
+    FarmState   = "IDLE",
+    IsRunning   = false,
+    Connections = {},
+
+    Target = { Root=nil, Model=nil, Humanoid=nil, Player=nil, Role=nil, LockTime=0 },
+    Movement = { BodyVelocity=nil, LastPos=Vector3.zero },
+    Stuck = { StuckTime=0, StuckCount=0, LastRecovery=0, RecoveryCooldown=3,
+              OffsetVector=Vector3.zero, MaxStuckCount=4 },
+    LastMoneyTime = 0,
+
+    -- ── TARGET MANAGER ──
+
+    IsTargetValid = function(self)
+        local t = self.Target
+        if not t.Root or not t.Root.Parent then return false end
+        if not t.Root:IsDescendantOf(workspace) then return false end
+        if not t.Humanoid or t.Humanoid.Health <= 0 then return false end
+        local myRole = Engine.State.CurrentRole
+        if myRole == "ZOOKEEPER" and t.Role ~= "OOF" then return false end
+        if myRole == "OOF"       and t.Role ~= "ZOOKEEPER" then return false end
+        return true
+    end,
+
+    ClearTarget = function(self)
+        if self.Target.Root ~= nil then
+            Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
+        end
+        self.Target = { Root=nil, Model=nil, Humanoid=nil, Player=nil, Role=nil, LockTime=0 }
+        Engine.State.CurrentTarget = nil
+        Engine.State.TargetModel   = nil
+    end,
+
+    FindAndLockTarget = function(self)
+        local char = LocalPlayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return false end
+        local myPos  = hrp.Position
+        local myRole = Engine.State.CurrentRole
+
+        local pool = {}
+        if myRole == "ZOOKEEPER" then
+            pool = Engine.Cache.Oofs
+        elseif myRole == "OOF" then
+            pool = Engine.Cache.Zookeepers
+        else
+            pool = Engine.Cache.Oofs
+            if #pool == 0 then pool = Engine.Cache.Zookeepers end
+        end
+        if #pool == 0 then return false end
+
+        local bestScore, bestItem = math.huge, nil
+        for _, item in ipairs(pool) do
+            if item.Humanoid and item.Humanoid.Health > 0 and item.Root and item.Root.Parent then
+                if item.Player ~= LocalPlayer and item.Model ~= LocalPlayer.Character then
+                    local dist  = (item.Root.Position - myPos).Magnitude
+                    local hpPct = item.Humanoid.Health / math.max(item.Humanoid.MaxHealth, 1)
+                    local score = dist + hpPct * 25
+                    if score < bestScore then bestScore = score; bestItem = item end
+                end
+            end
+        end
+        if not bestItem then return false end
+
+        self.Target.Root     = bestItem.Root
+        self.Target.Model    = bestItem.Model
+        self.Target.Humanoid = bestItem.Humanoid
+        self.Target.Player   = bestItem.Player
+        self.Target.Role     = bestItem.Role or (myRole == "ZOOKEEPER" and "OOF" or "ZOOKEEPER")
+        self.Target.LockTime = tick()
+        Engine.State.CurrentTarget = bestItem.Root
+        Engine.State.TargetModel   = bestItem.Model
+        return true
+    end,
+
+    -- ── MOVEMENT CONTROLLER ──
+
+    SetupBodyVelocity = function(self, hrp)
+        if self.Movement.BodyVelocity then
+            pcall(function() self.Movement.BodyVelocity:Destroy() end)
+            self.Movement.BodyVelocity = nil
+        end
+        local bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        bv.Velocity = Vector3.zero
+        bv.Parent   = hrp
+        self.Movement.BodyVelocity = bv
+    end,
+
+    CalcDestination = function(self, myRole, targetRoot, targetModel)
+        local targetPos    = targetRoot.Position
+        local targetCFrame = targetRoot.CFrame
+        local offset       = self.Stuck.OffsetVector
+        if myRole == "ZOOKEEPER" or myRole == "NEUTRAL" then
+            local attackDist = Engine.Modules.ConfigManager.Settings.ZooAttackDistance or 12
+            local basePos    = targetCFrame.Position + (targetCFrame.LookVector * attackDist) + Vector3.new(0, 3, 0)
+            if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
+                if not CheckLineOfSight(basePos, targetPos, targetModel) then
+                    return targetPos + Vector3.new(0, 14, 0) + offset
+                end
+            end
+            return basePos + offset
+        elseif myRole == "OOF" then
+            local farmHeight = Engine.Modules.ConfigManager.Settings.AutoFarmHeight or 700
+            return Vector3.new(targetPos.X, targetPos.Y + farmHeight, targetPos.Z) + offset
+        end
+        return targetPos + Vector3.new(0, 5, 0) + offset
+    end,
+
+    MoveTowards = function(self, hrp, destination)
+        local bv = self.Movement.BodyVelocity
+        if not bv or not bv.Parent then
+            self:SetupBodyVelocity(hrp)
+            bv = self.Movement.BodyVelocity
+        end
+        if not bv then return end
+        local diff  = destination - hrp.Position
+        local dist  = diff.Magnitude
+        local speed = Engine.Modules.ConfigManager.Settings.AutoFarmSpeed or 85
+        if dist > 0.8 then
+            bv.Velocity = diff.Unit * math.min(dist * 6, speed)
+        else
+            bv.Velocity = Vector3.zero
+        end
+    end,
+
+    StopMovement = function(self)
+        if self.Movement.BodyVelocity and self.Movement.BodyVelocity.Parent then
+            self.Movement.BodyVelocity.Velocity = Vector3.zero
+        end
+    end,
+
+    -- ── ANTI-STUCK V2 ──
+
+    UpdateAntiStuck = function(self, hrp, dt)
+        local moved = (hrp.Position - self.Movement.LastPos).Magnitude
+        if moved < 0.3 and Engine.State.CurrentTarget then
+            self.Stuck.StuckTime = self.Stuck.StuckTime + dt
+            if self.Stuck.StuckTime > 1.5 then
+                local now = tick()
+                if now - self.Stuck.LastRecovery > self.Stuck.RecoveryCooldown then
+                    self.Stuck.StuckCount   = self.Stuck.StuckCount + 1
+                    self.Stuck.LastRecovery = now
+                    self.Stuck.StuckTime    = 0
+                    if self.Stuck.StuckCount >= self.Stuck.MaxStuckCount then
+                        self.Stuck.StuckCount   = 0
+                        self.Stuck.OffsetVector = Vector3.zero
+                        self:ClearTarget()
+                        self.FarmState = "TARGET_LOST"
+                        return
+                    end
+                    local sc = self.Stuck.StuckCount
+                    if sc == 1 then
+                        self.Stuck.OffsetVector = Vector3.new(math.random(-10,10), 8, math.random(-10,10))
+                    elseif sc == 2 then
+                        self.Stuck.OffsetVector = Vector3.new(math.random(-20,20), 15, math.random(-20,20))
+                    elseif sc == 3 then
+                        self.Stuck.OffsetVector = Vector3.new(0, 25, 0)
+                    end
+                    self.FarmState = "RECOVERY"
+                end
+            end
+        else
+            self.Stuck.StuckTime = 0
+            if self.Stuck.StuckCount > 0 and moved > 2 then
+                self.Stuck.StuckCount   = 0
+                self.Stuck.OffsetVector = self.Stuck.OffsetVector:Lerp(Vector3.zero, 0.1)
+            end
+        end
+        self.Movement.LastPos = hrp.Position
+    end,
+
+    -- ── STATE MACHINE HEARTBEAT ──
+
+    FarmHeartbeat = function(self, dt)
+        if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
+        if self.FarmState == "IDLE" then return end
+
+        local char = LocalPlayer.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if not char or not hrp or not hum or hum.Health <= 0 then return end
+
+        -- Update role
+        local forceRole = Engine.Modules.ConfigManager.Settings.ForceRole
+        Engine.State.CurrentRole = (forceRole and forceRole ~= "AUTO")
+            and forceRole or DeterminePlayerRole(LocalPlayer)
+        local myRole = Engine.State.CurrentRole
+
+        -- PlatformStand + NoCollide
+        pcall(function() hum.PlatformStand = true end)
+        for _, p in ipairs(char:GetChildren()) do
+            if p:IsA("BasePart") and p ~= hrp then
+                pcall(function() p.CanCollide = false end)
+            end
+        end
+
+        if Engine.Modules.ConfigManager.Settings.AntiStuck then
+            self:UpdateAntiStuck(hrp, dt)
+        end
+
+        local state = self.FarmState
+
+        if state == "SCANNING" then
+            if self:IsTargetValid() then
+                self.FarmState = "TARGET_LOCKED"
+            else
+                self:ClearTarget()
+                if self:FindAndLockTarget() then
+                    self.FarmState = "TARGET_LOCKED"
+                    self.Stuck.StuckCount   = 0
+                    self.Stuck.OffsetVector = Vector3.zero
+                else
+                    self:StopMovement()
+                end
+            end
+
+        elseif state == "TARGET_LOCKED" or state == "MOVING"
+            or state == "IN_RANGE"    or state == "ATTACKING" then
+            if not self:IsTargetValid() then
+                self:ClearTarget()
+                self.FarmState = "TARGET_LOST"
+                self:StopMovement()
+                return
+            end
+
+            local targetRoot  = self.Target.Root
+            local targetModel = self.Target.Model
+            local targetPos   = targetRoot.Position
+            local destination = self:CalcDestination(myRole, targetRoot, targetModel)
+            local distToDest  = (destination - hrp.Position).Magnitude
+            local currentPos  = hrp.Position
+
+            self:MoveTowards(hrp, destination)
+
+            if distToDest > 3 then
+                pcall(function()
+                    hrp.CFrame = CFrame.new(currentPos, Vector3.new(targetPos.X, currentPos.Y, targetPos.Z))
+                end)
+            end
+
+            pcall(function()
+                Camera.CFrame = Camera.CFrame:Lerp(
+                    CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.2
+                )
+            end)
+
+            if distToDest <= 2 then
+                self.FarmState = "IN_RANGE"
+            elseif distToDest <= 100 then
+                self.FarmState = "ATTACKING"
+            else
+                self.FarmState = "MOVING"
+            end
+
+        elseif state == "TARGET_LOST" then
+            self:StopMovement()
+            self.FarmState = "SCANNING"
+
+        elseif state == "RECOVERY" then
+            if self:IsTargetValid() then
+                local dest = self:CalcDestination(myRole, self.Target.Root, self.Target.Model)
+                self:MoveTowards(hrp, dest)
+                if tick() - self.Stuck.LastRecovery > 2 then
+                    self.FarmState = "MOVING"
+                end
+            else
+                self.FarmState = "TARGET_LOST"
+            end
+        end
+
+        -- Auto Money (ProximityPrompt)
+        if myRole == "ZOOKEEPER" and Engine.Modules.ConfigManager.Settings.AutoMoney
+            and tick() - self.LastMoneyTime > 1.5 then
+            self.LastMoneyTime = tick()
+            for _, item in ipairs(Engine.Cache.Prompts) do
+                if fireproximityprompt and item.Prompt and item.Prompt.Parent then
+                    pcall(function() fireproximityprompt(item.Prompt) end)
+                    break
+                end
+            end
+        end
+    end,
+
+    -- ── SCAN THREAD ──
+
+    RunScanThread = function(self)
+        return task.spawn(function()
+            while self.IsRunning do
+                pcall(function()
+                    FastScanPlayers()
+                    if self.FarmState == "SCANNING" or self.FarmState == "TARGET_LOST" then
+                        if self:FindAndLockTarget() and self:IsTargetValid() then
+                            self.FarmState = "TARGET_LOCKED"
+                        end
+                    end
+                end)
+                task.wait(self.FarmState == "SCANNING" and 0.1 or 0.35)
+            end
+        end)
+    end,
+
+    -- ── START ──
+
     Start = function(self)
         self:Stop()
         local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
-        if not hrp then return end
-        self.StuckTracker.LastPos = hrp.Position
-        
-        local farmBV = Instance.new("BodyVelocity")
-        farmBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-        farmBV.Velocity = Vector3.zero
-        farmBV.Parent = hrp
-        table.insert(Engine.State.FarmConnections, function() if farmBV then farmBV:Destroy() end end)
-        
-        local scanThread = task.spawn(function()
-            while Engine.Modules.ConfigManager.Settings.AutoFarm do
-                Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
-                pcall(FastScanPlayers)
-                
-                if not IsTargetValid(Engine.State.CurrentTarget) then
-                    if Engine.State.CurrentTarget ~= nil then
-                        Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
-                    end
-                    Engine.State.CurrentTarget = GetBestTarget()
-                else
-                    local freshTarget = GetBestTarget()
-                    if freshTarget and freshTarget ~= Engine.State.CurrentTarget then
-                        Engine.State.CurrentTarget = freshTarget
-                    end
-                end
-                task.wait(0.1)
-            end
-        end)
-        table.insert(Engine.State.FarmConnections, scanThread)
-        
-        -- Auto Money (ProximityPrompt) — vẫn giữ trong Farm vì liên quan đến movement
-        local moneyThread = task.spawn(function()
-            while Engine.Modules.ConfigManager.Settings.AutoFarm do
-                if Engine.State.CurrentRole == "ZOOKEEPER" and Engine.Modules.ConfigManager.Settings.AutoMoney and tick() - self.LastActions.Prompt > 1.5 then
-                    self.LastActions.Prompt = tick()
-                    for _, item in ipairs(Engine.Cache.Prompts) do
-                        if fireproximityprompt and item.Prompt and item.Prompt.Parent then
-                            pcall(function() fireproximityprompt(item.Prompt) end)
-                            break
-                        end
-                    end
-                end
-                task.wait(0.2)
-            end
-        end)
-        table.insert(Engine.State.FarmConnections, moneyThread)
-        
-        local farmLoop = Engine.Services.RunService.Heartbeat:Connect(function(dt)
-            if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if not hrp then return end
-            
-            if hum then hum.PlatformStand = true end
-            -- Không reset AssemblyLinearVelocity vì BodyVelocity cần hoạt động tự do
-            
-            for _, part in ipairs(char:GetChildren()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-            
-            if Engine.Modules.ConfigManager.Settings.AntiStuck then
-                if (hrp.Position - self.StuckTracker.LastPos).Magnitude < 0.4 then
-                    self.StuckTracker.StuckTime = self.StuckTracker.StuckTime + dt
-                    if self.StuckTracker.StuckTime > 1.5 then
-                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-15, 15), 10, math.random(-15, 15))
-                        self.StuckTracker.StuckTime = 0
-                    end
-                else
-                    self.StuckTracker.StuckTime = 0
-                    self.StuckTracker.LastPos = hrp.Position
-                    self.StuckTracker.OffsetVector = self.StuckTracker.OffsetVector:Lerp(Vector3.zero, 0.08)
-                end
-            end
-            
-            if Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
-                local targetPos = Engine.State.CurrentTarget.Position
-                local destination
-                local currentPos = hrp.Position
-                
-                if Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL" then
-                    local targetCFrame = Engine.State.CurrentTarget.CFrame
-                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
-                    
-                    if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
-                        local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
-                        if not hasLOS then
-                            destination = targetPos + Vector3.new(0, 14, 0) + self.StuckTracker.OffsetVector
-                        else
-                            destination = defaultPos
-                        end
-                    else
-                        destination = defaultPos
-                    end
-                elseif Engine.State.CurrentRole == "OOF" then
-                    -- KHI LÀ OOF: BAY THẲNG LÊN TRỜI CAO (AUTOFARMHEIGHT STUDS) TRÊN ĐẦU ZOOKEEPER
-                    local farmHeight = Engine.Modules.ConfigManager.Settings.AutoFarmHeight or 700
-                    destination = Vector3.new(targetPos.X, targetPos.Y + farmHeight, targetPos.Z) + self.StuckTracker.OffsetVector
-                else
-                    return
-                end
-                
-                local dist = (destination - currentPos).Magnitude
-                
-                -- Di chuyển bằng BodyVelocity (nhất quán, không xung đột)
-                local farmBV = hrp:FindFirstChild("BodyVelocity")
-                if farmBV then
-                    if dist > 1 then
-                        local moveSpeed = Engine.Modules.ConfigManager.Settings.AutoFarmSpeed or 85
-                        local moveDir = (destination - currentPos).Unit
-                        farmBV.Velocity = moveDir * math.min(dist * 5, moveSpeed)
-                    else
-                        farmBV.Velocity = Vector3.zero
-                    end
-                end
-                
-                -- Xoay nhìn về target
-                if dist > 2 then
-                    hrp.CFrame = CFrame.new(currentPos, Vector3.new(targetPos.X, currentPos.Y, targetPos.Z))
-                end
-                
-                Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), 0.25)
-                
-                -- ATTACK & SKILL được xử lý hoàn toàn bởi CombatController
-                -- FarmManager chỉ lo di chuyển, không gọi attack/click ở đây
-            else
-                -- Không có target: đứng yên, tắt velocity
-                local farmBV = hrp:FindFirstChild("BodyVelocity")
-                if farmBV then farmBV.Velocity = Vector3.zero end
-            end
-        end)
-        table.insert(Engine.State.FarmConnections, farmLoop)
-        
-        local roleLabel = Engine.Modules.ConfigManager.Settings.ForceRole == "OOF" and "🔴 OOF Mode" 
-            or Engine.Modules.ConfigManager.Settings.ForceRole == "ZOOKEEPER" and "🔵 Zoo Mode"
-            or "⚡ Auto-Detect"
-        Engine.Modules.NotificationManager:Notify("🤖 Auto Farm V10.5", "Farm bắt đầu! Role: " .. roleLabel, 3)
-    end,
-    
-    Stop = function(self)
-        for _, conn in ipairs(Engine.State.FarmConnections) do
-            if typeof(conn) == "RBXScriptConnection" then conn:Disconnect() end
-            if typeof(conn) == "thread" then task.cancel(conn) end
-            if typeof(conn) == "function" then conn() end
+        local hrp  = char:FindFirstChild("HumanoidRootPart")
+            or char:WaitForChild("HumanoidRootPart", 5)
+        if not hrp then
+            Engine.Modules.NotificationManager:Notify("❌ Farm", "Không tìm thấy HRP!", 3)
+            return
         end
-        table.clear(Engine.State.FarmConnections)
-        Engine.State.CurrentTarget = nil
-        
+        self.IsRunning            = true
+        self.FarmState            = "SCANNING"
+        self.Movement.LastPos     = hrp.Position
+        self:SetupBodyVelocity(hrp)
+
+        table.insert(self.Connections, function()
+            if self.Movement.BodyVelocity then
+                pcall(function() self.Movement.BodyVelocity:Destroy() end)
+                self.Movement.BodyVelocity = nil
+            end
+        end)
+        table.insert(self.Connections, self:RunScanThread())
+        table.insert(self.Connections,
+            Engine.Services.RunService.Heartbeat:Connect(function(dt)
+                pcall(function() self:FarmHeartbeat(dt) end)
+            end)
+        )
+        table.insert(self.Connections,
+            LocalPlayer.CharacterAdded:Connect(function()
+                task.spawn(function()
+                    task.wait(0.8)
+                    if Engine.Modules.ConfigManager.Settings.AutoFarm then
+                        self:Start()
+                    end
+                end)
+            end)
+        )
+        local roleLabel = Engine.Modules.ConfigManager.Settings.ForceRole == "OOF" and "🔴 OOF"
+            or Engine.Modules.ConfigManager.Settings.ForceRole == "ZOOKEEPER" and "🔵 Zoo"
+            or "⚡ Auto"
+        Engine.Modules.NotificationManager:Notify("🤖 Farm V11", "State Machine Active! Role: " .. roleLabel, 3)
+    end,
+
+    -- ── STOP ──
+
+    Stop = function(self)
+        self.IsRunning = false
+        self.FarmState = "IDLE"
+        for _, conn in ipairs(self.Connections) do
+            if typeof(conn) == "RBXScriptConnection" then
+                pcall(function() conn:Disconnect() end)
+            elseif typeof(conn) == "thread" then
+                pcall(function() task.cancel(conn) end)
+            elseif typeof(conn) == "function" then
+                pcall(conn)
+            end
+        end
+        table.clear(self.Connections)
+        if self.Movement.BodyVelocity then
+            pcall(function() self.Movement.BodyVelocity:Destroy() end)
+            self.Movement.BodyVelocity = nil
+        end
+        self:ClearTarget()
+        self.Stuck.StuckTime    = 0
+        self.Stuck.StuckCount   = 0
+        self.Stuck.OffsetVector = Vector3.zero
+        self.Stuck.LastRecovery = 0
         local char = LocalPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.PlatformStand = false end
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then pcall(function() hum.PlatformStand = false end) end
+        if char then
+            for _, p in ipairs(char:GetChildren()) do
+                if p:IsA("BasePart") then
+                    pcall(function() p.CanCollide = true end)
+                end
+            end
+        end
     end
 }
 
