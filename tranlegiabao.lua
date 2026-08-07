@@ -977,11 +977,11 @@ local function DeterminePlayerRole(plr)
     
     if typeof(plr) == "Instance" and plr:IsA("Model") then
         local p = Engine.Services.Players:GetPlayerFromCharacter(plr)
-        if p then plr = p else return "OOF" end
+        if p then plr = p else return "NEUTRAL" end
     end
     
     if typeof(plr) ~= "Instance" or not plr:IsA("Player") then
-        return "OOF"
+        return "NEUTRAL"
     end
     
     if CheckIsProtectedOrNeutral(plr) then
@@ -1115,7 +1115,7 @@ local function GetBestTarget()
     local myPos = hrp.Position
     
     local myRole = DeterminePlayerRole(LocalPlayer)
-    -- NẾU LÀ NEUTRAL (NGƯỜI THƯỜNG): KHÔNG CHỌN MỤC TIÊU (ĐỨNG YÊN 1 CHỖ)
+    -- NẾU MÌNH LÀ NEUTRAL (NGƯỜI THƯỜNG): KHÔNG CHỌN MỤC TIÊU (ĐỨNG YÊN)
     if myRole == "NEUTRAL" then
         Engine.State.TargetModel = nil
         return nil
@@ -1125,10 +1125,11 @@ local function GetBestTarget()
     local bestModel = nil
     local minScore = math.huge
     
+    -- NẾU MÌNH LÀ ZOOKEEPER -> CHỈ LẤY DANH SÁCH OOF
     local pool = (myRole == "ZOOKEEPER") and Engine.Cache.Oofs or Engine.Cache.Zookeepers
     
     for _, item in ipairs(pool) do
-        if item.Humanoid and item.Humanoid.Health > 0 and item.Root then
+        if item.Root and IsTargetValid(item.Root) then
             local dist = (item.Root.Position - myPos).Magnitude
             local hpFactor = (item.Humanoid.Health / item.Humanoid.MaxHealth) * 30
             local score = dist + hpFactor
@@ -1148,21 +1149,26 @@ end
 local function IsTargetValid(target)
     if not target or not target.Parent then return false end
     if not target:IsDescendantOf(workspace) then return false end
-    local hum = target.Parent:FindFirstChildOfClass("Humanoid")
+    
+    local charModel = target.Parent
+    local hum = charModel:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return false end
     
-    local plr = Engine.Services.Players:GetPlayerFromCharacter(target.Parent)
-    if plr then
-        if CheckIsProtectedOrNeutral(plr) then return false end
-        
-        -- KIỂM TRA CHÍNH XÁC VAI TRÒ CỦA TARGET SO VỚI BẢN THÂN
-        local myRole = DeterminePlayerRole(LocalPlayer)
-        local targetRole = DeterminePlayerRole(plr)
-        
-        if targetRole == "NEUTRAL" then return false end -- Người thường/Reset không bao giờ là mục tiêu
-        if myRole == "ZOOKEEPER" and targetRole ~= "OOF" then return false end -- Zoo chỉ săn OOF
-        if myRole == "OOF" and targetRole ~= "ZOOKEEPER" then return false end -- OOF chỉ săn Zoo
-    end
+    local plr = Engine.Services.Players:GetPlayerFromCharacter(charModel)
+    if plr and CheckIsProtectedOrNeutral(plr) then return false end
+    
+    -- KIỂM TRA CHÍNH XÁC VAI TRÒ (BẮT BUỘC KHÔNG PHẢI NEUTRAL)
+    local myRole = DeterminePlayerRole(LocalPlayer)
+    local targetRole = DeterminePlayerRole(plr or charModel)
+    
+    -- QUY TẮC NGHÊM NGẶT: NGƯỜI THƯỜNG (NEUTRAL) KHÔNG BAO GIỜ LÀ MỤC TIÊU
+    if targetRole == "NEUTRAL" then return false end
+    
+    -- NẾU MÌNH LÀ ZOOKEEPER -> CHỈ ĐƯỢC PHÉP BAY ĐẾN OOF
+    if myRole == "ZOOKEEPER" and targetRole ~= "OOF" then return false end
+    
+    -- NẾU MÌNH LÀ OOF -> CHỈ ĐƯỢC PHÉP BAY ĐẾN ZOOKEEPER
+    if myRole == "OOF" and targetRole ~= "ZOOKEEPER" then return false end
     
     return true
 end
