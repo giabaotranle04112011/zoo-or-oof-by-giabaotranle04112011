@@ -13,56 +13,61 @@ local Engine = {
     Status = "Booting",
     Author = "Trần Lê Gia Bảo",
     
-    CustomLogoID = "", -- Điền "rbxassetid://ID" tại đây nếu muốn dùng Roblox Decal ID trực tiếp
+    CustomLogoID = "https://github.com/giabaotranle04112011/zoo-or-oof-by-giabaotranle04112011/blob/main/bun.jpg", -- Điền "rbxassetid://ID" tại đây nếu muốn dùng Roblox Decal ID trực tiếp
+    
+    CachedLogoAsset = nil,
+    IsFetchingLogo = false,
     
     GetLogoAsset = function(self)
-        if self.CustomLogoID and self.CustomLogoID ~= "" then
-            return self.CustomLogoID
+        if self.CachedLogoAsset then
+            return self.CachedLogoAsset
         end
 
+        local rawUrl = "https://raw.githubusercontent.com/giabaotranle04112011/zoo-or-oof-by-giabaotranle04112011/main/bun.jpg"
         local getasset = getcustomasset or getsynasset or custom_asset
         
-        -- Nếu file bun.jpg đã có sẵn trong Workspace local
+        -- Kiểm tra file bun.jpg trong local storage (tải nhanh 0ms)
         if isfile and isfile("bun.jpg") and getasset then
             local ok, asset = pcall(function() return getasset("bun.jpg") end)
-            if ok and asset then return asset end
+            if ok and asset then 
+                self.CachedLogoAsset = asset
+                return asset 
+            end
         end
 
-        -- Tự động tải file bun.jpg từ GitHub nếu chưa có trong Workspace local
-        if isfile and writefile and getasset then
-            local repoUrls = {
-                "https://raw.githubusercontent.com/giabaotranle04112011/zoo-or-oof-by-giabaotranle04112011/main/bun.jpg",
-                "https://raw.githubusercontent.com/giabaotranle04112011/getkey/main/bun.jpg",
-                "https://raw.githubusercontent.com/giabaotranle04112011/rbzoo/main/bun.jpg",
-                "https://raw.githubusercontent.com/giabaotranle04112011/tranlegiabao/main/bun.jpg"
-            }
-            local httpRequest = (syn and syn.request) or (http and http.request) or request or http_request
-            for _, logoUrl in ipairs(repoUrls) do
+        -- Nếu chưa có file, tiến hành tải ngầm không gây khựng/lag game
+        if not self.IsFetchingLogo then
+            self.IsFetchingLogo = true
+            task.spawn(function()
+                local httpRequest = (syn and syn.request) or (http and http.request) or request or http_request
                 local imageBytes = nil
+
                 if httpRequest then
                     pcall(function()
-                        local res = httpRequest({ Url = logoUrl, Method = "GET" })
-                        if res and res.Body and #res.Body > 100 then
-                            imageBytes = res.Body
-                        end
+                        local res = httpRequest({ Url = rawUrl, Method = "GET" })
+                        if res and res.Body and #res.Body > 100 then imageBytes = res.Body end
                     end)
                 end
                 if not imageBytes then
                     pcall(function()
-                        local b = game:HttpGet(logoUrl)
+                        local b = game:HttpGet(rawUrl)
                         if b and #b > 100 then imageBytes = b end
                     end)
                 end
-                if imageBytes then
+
+                if imageBytes and writefile and getasset then
                     pcall(function() writefile("bun.jpg", imageBytes) end)
-                    local ok, asset = pcall(function() return getasset("bun.jpg") end)
-                    if ok and asset then return asset end
-                    break
+                    pcall(function() self.CachedLogoAsset = getasset("bun.jpg") end)
                 end
-            end
+
+                if not self.CachedLogoAsset then
+                    self.CachedLogoAsset = rawUrl
+                end
+                self.IsFetchingLogo = false
+            end)
         end
 
-        return nil
+        return rawUrl
     end
 }
 
@@ -91,6 +96,25 @@ Engine.Services = {
 local LocalPlayer = Engine.Services.Players.LocalPlayer
 local Camera = Engine.Services.Workspace.CurrentCamera
 
+-- Tự động lắng nghe tất cả RemoteEvent trong ReplicatedStorage để dập tắt cảnh báo (discarded event) từ Roblox Engine
+task.spawn(function()
+    local repStorage = Engine.Services.ReplicatedStorage
+    local function silenceRemote(obj)
+        if obj:IsA("RemoteEvent") then
+            pcall(function()
+                obj.OnClientEvent:Connect(function() end)
+            end)
+        end
+    end
+
+    pcall(function()
+        for _, obj in ipairs(repStorage:GetDescendants()) do
+            silenceRemote(obj)
+        end
+        repStorage.DescendantAdded:Connect(silenceRemote)
+    end)
+end)
+
 -- ==========================================
 -- [2] CONFIG MANAGER
 -- ==========================================
@@ -100,7 +124,10 @@ Engine.Modules.ConfigManager = {
         Fly = false, FlySpeed = 120, Speed = false, SpeedValue = 20, Noclip = false, InfJump = false, HitboxSize = 4,
         AutoAttack = true, AutoSkill = true, AutoMoney = true, AntiAFK = true, ShowHUD = true, FPSBooster = true,
         AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 75, SmartMovement = true, AntiStuck = true,
-        ForceZookeeper = true, SmartWallBypass = true, Language = "VN"
+        ForceZookeeper = true, SmartWallBypass = true, Language = "VN",
+        ESP_Enabled = true, ESP_Box2D = true, ESP_Name = true, ESP_Distance = true,
+        ESP_HealthBar = true, ESP_Skeleton = false, ESP_Tracer = false, ESP_TracerMode = "Bottom",
+        ESP_OffscreenArrow = true, ESP_TargetHighlight = true, ESP_Filter = "All", ESP_MaxDistance = 1500
     },
     File = "RBZoo_Smart_Config_V8_0.json",
     
@@ -180,6 +207,7 @@ Engine.Modules.I18n = {
             TabCombat = "⚡ Auto Bắn & Skill",
             TabFarm = "🤖 Auto Farm AI",
             TabMovement = "🚀 Tốc Độ & Di Chuyển",
+            TabESP = "👁️ ESP Visuals",
             TabKey = "🔑 Hệ Thống Key",
             TabLanguage = "🌐 Ngôn Ngữ (Language)",
             
@@ -208,6 +236,17 @@ Engine.Modules.I18n = {
             SpeedValue = "Giá trị tốc độ",
             Noclip = "Đi xuyên tường (Noclip)",
             InfJump = "Nhảy vô tận (Inf Jump)",
+
+            ESP_Enabled = "Kích hoạt ESP Engine",
+            ESP_Box2D = "ESP Khung 2D (Box)",
+            ESP_Name = "ESP Tên & Role",
+            ESP_Distance = "ESP Khoảng cách",
+            ESP_HealthBar = "ESP Thanh Máu (HP Bar)",
+            ESP_Skeleton = "ESP Khung Xương (Skeleton)",
+            ESP_Tracer = "ESP Đường dẫn (Tracer)",
+            ESP_OffscreenArrow = "Mũi tên chỉ hướng (Off-screen)",
+            ESP_TargetHighlight = "Vòng sáng Khóa Target",
+            ESP_MaxDistance = "Khoảng cách ESP tối đa",
             
             KeyInfoTitle = "🔑 THÔNG TIN KEY & CỘNG ĐỒNG",
             KeyVal = "Mã Key: ",
@@ -244,6 +283,7 @@ Engine.Modules.I18n = {
             TabCombat = "⚡ Combat AI",
             TabFarm = "🤖 Auto Farm AI",
             TabMovement = "🚀 Movement & Fly",
+            TabESP = "👁️ ESP Visuals",
             TabKey = "🔑 Key System",
             TabLanguage = "🌐 Language (Ngôn Ngữ)",
             
@@ -272,6 +312,17 @@ Engine.Modules.I18n = {
             SpeedValue = "Speed Value",
             Noclip = "Noclip (Walk Through Walls)",
             InfJump = "Infinite Jump",
+
+            ESP_Enabled = "Enable ESP Engine",
+            ESP_Box2D = "ESP 2D Box",
+            ESP_Name = "ESP Name & Role",
+            ESP_Distance = "ESP Distance",
+            ESP_HealthBar = "ESP Health Bar",
+            ESP_Skeleton = "ESP Skeleton",
+            ESP_Tracer = "ESP Tracer Line",
+            ESP_OffscreenArrow = "Off-screen Direction Arrow",
+            ESP_TargetHighlight = "Target Lock Highlight",
+            ESP_MaxDistance = "ESP Max Distance",
             
             KeyInfoTitle = "🔑 KEY INFO & COMMUNITY",
             KeyVal = "Current Key: ",
@@ -424,26 +475,27 @@ Engine.Modules.LoadingScreen = {
         statusLabel.Parent = card
 
         local steps = {
-            {time = 0.9, text = "⚡ [1/5] Nạp Service & Cấu hình Class Quid Config..."},
-            {time = 1.8, text = "🚀 [2/5] Kích hoạt Engine Tối ưu hóa FPS & Fix Lag..."},
-            {time = 2.7, text = "🛡️ [3/5] Kích hoạt Smart Wall Bypass & Auto Hunter..."},
-            {time = 3.6, text = "🔑 [4/5] Kết nối Server Key getkeyfree24h.netlify.app..."},
-            {time = 4.5, text = "✨ [5/5] Nạp hoàn tất! Đang khởi chạy giao diện..."}
+            {time = 0.1, text = "⚡ [1/5] Nạp Service & Cấu hình Class Quid Config..."},
+            {time = 0.25, text = "🚀 [2/5] Kích hoạt Engine Tối ưu hóa FPS & Fix Lag..."},
+            {time = 0.4, text = "🛡️ [3/5] Kích hoạt Smart Wall Bypass & Auto Hunter..."},
+            {time = 0.5, text = "🔑 [4/5] Kết nối Server Key getkeyfree24h.netlify.app..."},
+            {time = 0.6, text = "✨ [5/5] Nạp hoàn tất! Đang khởi chạy giao diện..."}
         }
 
+        local totalDuration = 0.6
         local startTime = tick()
-        while tick() - startTime < 4.5 do
+        while tick() - startTime < totalDuration do
             local elapsed = tick() - startTime
-            local progress = math.clamp(elapsed / 4.5, 0, 1)
+            local progress = math.clamp(elapsed / totalDuration, 0, 1)
 
-            Engine.Services.TweenService:Create(barFill, TweenInfo.new(0.1), {Size = UDim2.new(progress, 0, 1, 0)}):Play()
+            Engine.Services.TweenService:Create(barFill, TweenInfo.new(0.05), {Size = UDim2.new(progress, 0, 1, 0)}):Play()
             percentLabel.Text = math.floor(progress * 100) .. "%"
-            stroke.Color = Color3.fromHSV(tick() % 4 / 4, 0.8, 1)
+            stroke.Color = Color3.fromHSV((tick() * 2) % 1, 0.8, 1)
 
-            if elapsed < 0.9 then statusLabel.Text = steps[1].text
-            elseif elapsed < 1.8 then statusLabel.Text = steps[2].text
-            elseif elapsed < 2.7 then statusLabel.Text = steps[3].text
-            elseif elapsed < 3.6 then statusLabel.Text = steps[4].text
+            if elapsed < 0.15 then statusLabel.Text = steps[1].text
+            elseif elapsed < 0.3 then statusLabel.Text = steps[2].text
+            elseif elapsed < 0.45 then statusLabel.Text = steps[3].text
+            elseif elapsed < 0.55 then statusLabel.Text = steps[4].text
             else statusLabel.Text = steps[5].text
             end
 
@@ -452,7 +504,7 @@ Engine.Modules.LoadingScreen = {
 
         barFill.Size = UDim2.new(1, 0, 1, 0)
         percentLabel.Text = "100%"
-        task.wait(0.25)
+        task.wait(0.1)
 
         Engine.Services.TweenService:Create(bg, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
         Engine.Services.TweenService:Create(card, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
@@ -527,27 +579,14 @@ Engine.Modules.KeySystem = {
             return nil
         end
 
-        -- Lấy Commit SHA mới nhất để tránh Cache Fastly của GitHub
-        local reposToTry = { self.RepoName, "zoo-or-oof-by-giabaotranle04112011" }
-        for _, repo in ipairs(reposToTry) do
-            local commitApiUrl = string.format("https://api.github.com/repos/%s/%s/commits/main", self.RepoOwner, repo)
-            local apiResponse = httpGetRaw(commitApiUrl)
-            
-            if apiResponse then
-                local ok, commitData = pcall(function() return Engine.Services.HttpService:JSONDecode(apiResponse) end)
-                if ok and commitData and commitData.sha then
-                    local shaUrl = string.format("https://raw.githubusercontent.com/%s/%s/%s/%s", self.RepoOwner, repo, commitData.sha, self.FilePath)
-                    local shaRawContent = httpGetRaw(shaUrl)
-                    if shaRawContent then
-                        return shaRawContent
-                    end
-                end
-            end
-
-            local directUrl = string.format("https://raw.githubusercontent.com/%s/%s/main/%s?nocache=%d", self.RepoOwner, repo, self.FilePath, os.time())
+        local timestamp = os.time()
+        local repoList = { self.RepoName, "zoo-or-oof-by-giabaotranle04112011" }
+        for _, repo in ipairs(repoList) do
+            local directUrl = string.format("https://raw.githubusercontent.com/%s/%s/main/%s?nocache=%d", self.RepoOwner, repo, self.FilePath, timestamp)
             local res = httpGetRaw(directUrl)
-            if res then return res end
+            if res and #res > 5 then return res end
         end
+
         return nil
     end,
 
@@ -937,16 +976,18 @@ Engine.Modules.TeamForce = {
                 if v:IsA("RemoteEvent") then
                     local name = v.Name:lower()
                     if name:find("team") or name:find("role") or name:find("select") or name:find("zoo") then
-                        v:FireServer("Zookeeper")
-                        v:FireServer("Zoo")
-                        v:FireServer(1)
+                        pcall(function() v:FireServer("Zookeeper") end)
+                        pcall(function() v:FireServer("Zoo") end)
+                        pcall(function() v:FireServer(1) end)
                     end
                 elseif v:IsA("RemoteFunction") then
                     local name = v.Name:lower()
                     if name:find("team") or name:find("role") or name:find("select") or name:find("zoo") then
-                        v:InvokeServer("Zookeeper")
-                        v:InvokeServer("Zoo")
-                        v:InvokeServer(1)
+                        task.spawn(function()
+                            pcall(function() v:InvokeServer("Zookeeper") end)
+                            pcall(function() v:InvokeServer("Zoo") end)
+                            pcall(function() v:InvokeServer(1) end)
+                        end)
                     end
                 end
             end
@@ -1050,112 +1091,7 @@ Engine.Modules.NotificationManager = {
 }
 
 -- ==========================================
--- [7] HUNTER HUD MODULE
--- ==========================================
-Engine.Modules.HunterHUD = {
-    Gui = nil,
-    Labels = {},
-    
-    Init = function(self)
-        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
-        local sg = Instance.new("ScreenGui")
-        sg.Name = "RBZoo_Hunter_HUD_V8"
-        sg.ResetOnSpawn = false
-        sg.Parent = coreGui
-        self.Gui = sg
-        
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 245, 0, 195)
-        frame.Position = UDim2.new(0, 15, 0.3, 0)
-        frame.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
-        frame.BackgroundTransparency = 0.32
-        frame.Active = true
-        frame.Draggable = true
-        frame.Parent = sg
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
-        
-        local stroke = Instance.new("UIStroke")
-        stroke.Thickness = 1.5
-        stroke.Color = Color3.fromRGB(0, 240, 255)
-        stroke.Transparency = 0.3
-        stroke.Parent = frame
-        
-        local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, 0, 0, 26)
-        title.BackgroundTransparency = 1
-        title.Text = "⚡ CLASS QUID HUNTER V8.5"
-        title.Font = Enum.Font.GothamBlack
-        title.TextSize = 11
-        title.TextColor3 = Color3.fromRGB(0, 240, 255)
-        title.Parent = frame
-        
-        local list = Instance.new("UIListLayout")
-        list.Padding = UDim.new(0, 2)
-        list.SortOrder = Enum.SortOrder.LayoutOrder
-        list.Parent = frame
-        
-        title.LayoutOrder = 0
-        
-        local function addLabel(key, defaultText)
-            local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -20, 0, 18)
-            lbl.Position = UDim2.new(0, 10, 0, 0)
-            lbl.BackgroundTransparency = 1
-            lbl.Text = defaultText
-            lbl.Font = Enum.Font.GothamBold
-            lbl.TextSize = 10
-            lbl.TextColor3 = Color3.fromRGB(220, 230, 245)
-            lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Parent = frame
-            self.Labels[key] = lbl
-            return lbl
-        end
-        
-        addLabel("Target", "Target: None").LayoutOrder = 1
-        addLabel("Distance", "Distance: N/A").LayoutOrder = 2
-        addLabel("Status", "Status: Idle").LayoutOrder = 3
-        addLabel("OofAlive", "OOF Alive: 0").LayoutOrder = 4
-        addLabel("Kills", "Total Kills: 0").LayoutOrder = 5
-        addLabel("KeyTime", "⏳ Key Hạn: N/A").LayoutOrder = 6
-        addLabel("Author", "👑 Author: " .. Engine.Author).LayoutOrder = 7
-        addLabel("Discord", "💬 Discord: rMJAhJwgW").LayoutOrder = 8
-        
-        Engine.Services.RunService.RenderStepped:Connect(function()
-            if not Engine.Modules.ConfigManager.Settings.ShowHUD then
-                frame.Visible = false
-                return
-            end
-            frame.Visible = true
-            
-            stroke.Color = Color3.fromHSV(tick() % 5 / 5, 0.75, 1)
-            
-            local targetName = "None"
-            local distStr = "N/A"
-            local statusStr = Engine.Modules.ConfigManager.Settings.AutoFarm and "Hunting" or "Idle"
-            
-            if Engine.State.CurrentTarget and Engine.State.CurrentTarget.Parent then
-                targetName = Engine.State.CurrentTarget.Parent.Name
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local d = math.floor((Engine.State.CurrentTarget.Position - hrp.Position).Magnitude)
-                    distStr = tostring(d) .. " studs"
-                end
-                statusStr = "LOCKED & FIRING"
-            end
-            
-            self.Labels.Target.Text = "Target: " .. targetName
-            self.Labels.Distance.Text = "Distance: " .. distStr
-            self.Labels.Status.Text = "Status: " .. statusStr
-            self.Labels.OofAlive.Text = "OOF Alive: " .. tostring(#Engine.Cache.Oofs)
-            self.Labels.Kills.Text = "Total Kills: " .. tostring(Engine.Cache.TotalKills)
-            self.Labels.KeyTime.Text = "⏳ Key Hạn: " .. Engine.Modules.KeySystem:GetRemainingTime()
-            self.Labels.Author.Text = "👑 Author: " .. Engine.Author
-        end)
-    end
-}
-
--- ==========================================
--- [8] FAST SCANNER & TARGETING
+-- [6.5] HELPER FUNCTIONS & ROLE DETERMINATION
 -- ==========================================
 local function PressKey(keyCode)
     pcall(function()
@@ -1226,6 +1162,141 @@ local function DeterminePlayerRole(plr)
     return "NEUTRAL"
 end
 
+-- ==========================================
+-- [7] HUNTER HUD MODULE
+-- ==========================================
+Engine.Modules.HunterHUD = {
+    Gui = nil,
+    Labels = {},
+    
+    Init = function(self)
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_Hunter_HUD_V8"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
+        self.Gui = sg
+        
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 255, 0, 240)
+        frame.Position = UDim2.new(0, 15, 0.25, 0)
+        frame.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
+        frame.BackgroundTransparency = 0.32
+        frame.Active = true
+        frame.Draggable = true
+        frame.Parent = sg
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
+        
+        local stroke = Instance.new("UIStroke")
+        stroke.Thickness = 1.5
+        stroke.Color = Color3.fromRGB(0, 240, 255)
+        stroke.Transparency = 0.3
+        stroke.Parent = frame
+        
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(1, 0, 0, 26)
+        title.BackgroundTransparency = 1
+        title.Text = "⚡ CLASS QUID HUNTER V8.5"
+        title.Font = Enum.Font.GothamBlack
+        title.TextSize = 11
+        title.TextColor3 = Color3.fromRGB(0, 240, 255)
+        title.Parent = frame
+        
+        local list = Instance.new("UIListLayout")
+        list.Padding = UDim.new(0, 2)
+        list.SortOrder = Enum.SortOrder.LayoutOrder
+        list.Parent = frame
+        
+        title.LayoutOrder = 0
+        
+        local function addLabel(key, defaultText)
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -20, 0, 17)
+            lbl.Position = UDim2.new(0, 10, 0, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = defaultText
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 10
+            lbl.TextColor3 = Color3.fromRGB(220, 230, 245)
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Parent = frame
+            self.Labels[key] = lbl
+            return lbl
+        end
+        
+        addLabel("Role", "Role: Loading...").LayoutOrder = 1
+        addLabel("Target", "Target: None").LayoutOrder = 2
+        addLabel("Distance", "Distance: N/A").LayoutOrder = 3
+        addLabel("Status", "Status: Idle").LayoutOrder = 4
+        addLabel("Hotkeys", "⌨️ [P]Farm:OFF | [M]Aim:OFF").LayoutOrder = 5
+        addLabel("Hotkeys2", "⌨️ [F]Fly:OFF  | [Q/E]Skill:AUTO").LayoutOrder = 6
+        addLabel("OofAlive", "OOF Alive: 0").LayoutOrder = 7
+        addLabel("Kills", "Total Kills: 0").LayoutOrder = 8
+        addLabel("KeyTime", "⏳ Key Hạn: N/A").LayoutOrder = 9
+        addLabel("Author", "👑 Author: " .. Engine.Author).LayoutOrder = 10
+        
+        task.spawn(function()
+            while task.wait(0.1) do
+                if not Engine.Modules.ConfigManager.Settings.ShowHUD then
+                    frame.Visible = false
+                else
+                    frame.Visible = true
+                    
+                    stroke.Color = Color3.fromHSV((tick() * 0.2) % 1, 0.75, 1)
+                    
+                    local role = DeterminePlayerRole(LocalPlayer)
+                    Engine.State.CurrentRole = role
+                    
+                    local roleStr = "🟢 NEUTRAL (Human)"
+                    local roleColor = Color3.fromRGB(50, 255, 100)
+                    if role == "ZOOKEEPER" then
+                        roleStr = "🔴 ZOOKEEPER (Zoo)"
+                        roleColor = Color3.fromRGB(255, 60, 60)
+                    elseif role == "OOF" then
+                        roleStr = "🔵 OOF (Animal)"
+                        roleColor = Color3.fromRGB(0, 150, 255)
+                    end
+                    self.Labels.Role.Text = "Role: " .. roleStr
+                    self.Labels.Role.TextColor3 = roleColor
+                    
+                    local targetName = "None"
+                    local distStr = "N/A"
+                    local statusStr = Engine.Modules.ConfigManager.Settings.AutoFarm and "Hunting" or "Idle"
+                    
+                    if Engine.State.CurrentTarget and Engine.State.CurrentTarget.Parent then
+                        targetName = Engine.State.CurrentTarget.Parent.Name
+                        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local d = math.floor((Engine.State.CurrentTarget.Position - hrp.Position).Magnitude)
+                            distStr = tostring(d) .. " studs"
+                        end
+                        statusStr = "LOCKED & FIRING"
+                    end
+                    
+                    self.Labels.Target.Text = "Target: " .. targetName
+                    self.Labels.Distance.Text = "Distance: " .. distStr
+                    self.Labels.Status.Text = "Status: " .. statusStr
+                    
+                    local farmTxt = Engine.Modules.ConfigManager.Settings.AutoFarm and "ON" or "OFF"
+                    local aimTxt = Engine.Modules.ConfigManager.Settings.Aimbot and "ON" or "OFF"
+                    local flyTxt = Engine.Modules.ConfigManager.Settings.Fly and "ON" or "OFF"
+                    self.Labels.Hotkeys.Text = string.format("⌨️ [P]Farm:%s | [M]Aim:%s", farmTxt, aimTxt)
+                    self.Labels.Hotkeys2.Text = string.format("⌨️ [F]Fly:%s | [Q/E]Skill:AUTO", flyTxt)
+                    
+                    self.Labels.OofAlive.Text = "OOF Alive: " .. tostring(#Engine.Cache.Oofs)
+                    self.Labels.Kills.Text = "Total Kills: " .. tostring(Engine.Cache.TotalKills)
+                    self.Labels.KeyTime.Text = "⏳ Key Hạn: " .. Engine.Modules.KeySystem:GetRemainingTime()
+                    self.Labels.Author.Text = "👑 Author: " .. Engine.Author
+                end
+            end
+        end)
+    end
+}
+
+-- ==========================================
+-- [8] FAST SCANNER & TARGETING
+-- ==========================================
+
 local function FastScanPlayers()
     table.clear(Engine.Cache.Oofs)
     table.clear(Engine.Cache.Animals)
@@ -1289,19 +1360,24 @@ local function GetBestTarget()
     local bestModel = nil
     local minScore = math.huge
     
+    -- NEUTRAL (Human) không được phép tự động tìm target AutoFarm
+    if Engine.State.CurrentRole == "NEUTRAL" then return nil end
+    
     local pool = (Engine.State.CurrentRole == "ZOOKEEPER") and Engine.Cache.Oofs or Engine.Cache.Zookeepers
-    if Engine.State.CurrentRole == "NEUTRAL" then pool = Engine.Cache.Oofs end
+    local blacklist = Engine.Modules.FarmManager and Engine.Modules.FarmManager.StuckTracker and Engine.Modules.FarmManager.StuckTracker.Blacklist or {}
     
     for _, item in ipairs(pool) do
         if item.Humanoid and item.Humanoid.Health > 0 and item.Root then
-            local dist = (item.Root.Position - myPos).Magnitude
-            local hpFactor = (item.Humanoid.Health / item.Humanoid.MaxHealth) * 30
-            local score = dist + hpFactor
-            
-            if score < minScore then
-                minScore = score
-                bestTargetRoot = item.Root
-                bestModel = item.Model
+            if not (blacklist[item.Root] and tick() < blacklist[item.Root]) then
+                local dist = (item.Root.Position - myPos).Magnitude
+                local hpFactor = (item.Humanoid.Health / item.Humanoid.MaxHealth) * 30
+                local score = dist + hpFactor
+                
+                if score < minScore then
+                    minScore = score
+                    bestTargetRoot = item.Root
+                    bestModel = item.Model
+                end
             end
         end
     end
@@ -1346,15 +1422,24 @@ end
 -- [9] FARM & COMBAT ENGINE (SMART WALL BYPASS)
 -- ==========================================
 Engine.Modules.FarmManager = {
-    StuckTracker = { LastPos = Vector3.zero, StuckTime = 0, OffsetVector = Vector3.zero },
+    StuckTracker = { LastPos = Vector3.zero, StuckTime = 0, OffsetVector = Vector3.zero, Blacklist = {} },
     LastActions = { Attack = 0, Skill = 0, Prompt = 0 },
     
     Start = function(self)
         self:Stop()
+        Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
+        
+        -- QUAN TRỌNG: Chỉ bật Auto Farm khi role là ZOOKEEPER hoặc OOF
+        if Engine.State.CurrentRole == "NEUTRAL" then
+            Engine.Modules.NotificationManager:Notify("Auto Farm Guard", "⚠️ Bỏ qua Farm! Role hiện tại là NEUTRAL (Human). Chỉ farm khi vào Zoo/OOF.", 4)
+            return
+        end
+
         local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
         local hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 3)
         if not hrp then return end
         self.StuckTracker.LastPos = hrp.Position
+        self.StuckTracker.StuckTime = 0
         
         local farmBV = Instance.new("BodyVelocity")
         farmBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
@@ -1366,11 +1451,15 @@ Engine.Modules.FarmManager = {
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
                 Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
                 
-                if not IsTargetValid(Engine.State.CurrentTarget) then
-                    if Engine.State.CurrentTarget ~= nil then
-                        Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
+                if Engine.State.CurrentRole == "NEUTRAL" then
+                    Engine.State.CurrentTarget = nil
+                else
+                    if not IsTargetValid(Engine.State.CurrentTarget) then
+                        if Engine.State.CurrentTarget ~= nil then
+                            Engine.Cache.TotalKills = Engine.Cache.TotalKills + 1
+                        end
+                        Engine.State.CurrentTarget = GetBestTarget()
                     end
-                    Engine.State.CurrentTarget = GetBestTarget()
                 end
                 task.wait(0.1)
             end
@@ -1409,6 +1498,10 @@ Engine.Modules.FarmManager = {
         
         local farmLoop = Engine.Services.RunService.Heartbeat:Connect(function(dt)
             if not Engine.Modules.ConfigManager.Settings.AutoFarm then return end
+            
+            Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
+            if Engine.State.CurrentRole == "NEUTRAL" then return end
+
             local char = LocalPlayer.Character
             local hum = char and char:FindFirstChildOfClass("Humanoid")
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1422,12 +1515,37 @@ Engine.Modules.FarmManager = {
                 if part:IsA("BasePart") then part.CanCollide = false end
             end
             
+            -- HỆ THỐNG ANTI-STUCK & RECOVERY HOÀN CHỈNH (Multi-Stage Recovery)
             if Engine.Modules.ConfigManager.Settings.AntiStuck then
-                if (hrp.Position - self.StuckTracker.LastPos).Magnitude < 0.4 then
+                local movedDist = (hrp.Position - self.StuckTracker.LastPos).Magnitude
+                if movedDist < 0.5 then
                     self.StuckTracker.StuckTime = self.StuckTracker.StuckTime + dt
-                    if self.StuckTracker.StuckTime > 1.5 then
-                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-15, 15), 10, math.random(-15, 15))
+                    
+                    if self.StuckTracker.StuckTime > 5.0 then
+                        -- Giai đoạn 5: Bỏ Target hiện tại & Đổi Target mới
+                        if Engine.State.CurrentTarget then
+                            self.StuckTracker.Blacklist[Engine.State.CurrentTarget] = tick() + 10
+                            Engine.State.CurrentTarget = nil
+                            Engine.State.TargetModel = nil
+                        end
                         self.StuckTracker.StuckTime = 0
+                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-25, 25), 15, math.random(-25, 25))
+                        Engine.Modules.NotificationManager:Notify("Anti-Stuck Recovery", "🔄 Kẹt lâu > 5s! Đã bỏ Target và chuyển mục tiêu mới...", 2.5)
+                    elseif self.StuckTracker.StuckTime > 3.8 then
+                        -- Giai đoạn 4: Reset Movement & Un-platformstand
+                        if hum then hum.PlatformStand = false end
+                        hrp.AssemblyLinearVelocity = Vector3.new(math.random(-20, 20), 35, math.random(-20, 20))
+                    elseif self.StuckTracker.StuckTime > 2.6 then
+                        -- Giai đoạn 3: Đổi hướng ngẫu nhiên (Change Direction)
+                        local angle = math.rad(math.random(60, 180))
+                        self.StuckTracker.OffsetVector = Vector3.new(math.cos(angle) * 18, 12, math.sin(angle) * 18)
+                    elseif self.StuckTracker.StuckTime > 1.4 then
+                        -- Giai đoạn 2: Nhảy (Jump)
+                        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+                        PressKey(Enum.KeyCode.Space)
+                    elseif self.StuckTracker.StuckTime > 0.6 then
+                        -- Giai đoạn 1: Repath Offset
+                        self.StuckTracker.OffsetVector = Vector3.new(math.random(-12, 12), 8, math.random(-12, 12))
                     end
                 else
                     self.StuckTracker.StuckTime = 0
@@ -1440,7 +1558,7 @@ Engine.Modules.FarmManager = {
                 local targetPos = Engine.State.CurrentTarget.Position
                 local destination
                 
-                if Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "NEUTRAL" then
+                if Engine.State.CurrentRole == "ZOOKEEPER" then
                     local targetCFrame = Engine.State.CurrentTarget.CFrame
                     local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
                     
@@ -1506,6 +1624,343 @@ Engine.Modules.FarmManager = {
         local char = LocalPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if hum then hum.PlatformStand = false end
+    end
+}
+
+-- ==========================================
+-- [9.5] HIGH-PERFORMANCE ESP ENGINE (SAFE DRAWING WRAPPER)
+-- ==========================================
+local function SafeDrawing(dType, props)
+    local obj = nil
+    pcall(function()
+        obj = Drawing.new(dType)
+        if props then
+            for k, v in pairs(props) do
+                pcall(function() obj[k] = v end)
+            end
+        end
+    end)
+    if obj and (typeof(obj) == "userdata" or typeof(obj) == "table") then
+        return obj
+    end
+    local proxy = {}
+    setmetatable(proxy, {
+        __index = function(t, k)
+            return function() end
+        end,
+        __newindex = function(t, k, v) end
+    })
+    return proxy
+end
+
+Engine.Modules.ESPManager = {
+    Cache = {},
+    TargetDrawings = nil,
+    CachedAnimals = {},
+    
+    GetRoleColor = function(self, role, isAnimal)
+        if isAnimal then return Color3.fromRGB(255, 200, 0) end
+        if role == "ZOOKEEPER" then
+            return Color3.fromRGB(255, 50, 50)
+        elseif role == "OOF" then
+            return Color3.fromRGB(0, 150, 255)
+        end
+        return Color3.fromRGB(0, 255, 120)
+    end,
+
+    CreateDrawings = function(self)
+        return {
+            BoxOutline = SafeDrawing("Square", {Thickness = 3, Color = Color3.fromRGB(0, 0, 0), Filled = false}),
+            Box = SafeDrawing("Square", {Thickness = 1.5, Filled = false}),
+            Name = SafeDrawing("Text", {Size = 12, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2}),
+            Distance = SafeDrawing("Text", {Size = 11, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2}),
+            HealthOutline = SafeDrawing("Square", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0), Filled = true}),
+            HealthFill = SafeDrawing("Square", {Thickness = 1, Filled = true}),
+            Tracer = SafeDrawing("Line", {Thickness = 1.2}),
+            ArrowText = SafeDrawing("Text", {Size = 12, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0)})
+        }
+    end,
+
+    Init = function(self)
+        self.TargetDrawings = {
+            Ring = SafeDrawing("Circle", {Thickness = 2.5, NumSides = 32, Color = Color3.fromRGB(255, 215, 0), Filled = false}),
+            Label = SafeDrawing("Text", {Size = 13, Center = true, Outline = true, Color = Color3.fromRGB(255, 215, 0)})
+        }
+
+        -- Quét ngầm danh sách Động vật 1.5s một lần (KHÔNG gây lag FPS)
+        task.spawn(function()
+            while task.wait(1.5) do
+                local list = {}
+                local animalFolder = Engine.Services.Workspace:FindFirstChild("Gameplay") 
+                    and Engine.Services.Workspace.Gameplay:FindFirstChild("Dynamic") 
+                    and Engine.Services.Workspace.Gameplay.Dynamic:FindFirstChild("Animals")
+                if not animalFolder then
+                    animalFolder = Engine.Services.Workspace:FindFirstChild("Animals") or Engine.Services.Workspace:FindFirstChild("Mobs")
+                end
+
+                if animalFolder then
+                    for _, animal in ipairs(animalFolder:GetChildren()) do
+                        table.insert(list, animal)
+                    end
+                else
+                    for _, child in ipairs(Engine.Services.Workspace:GetChildren()) do
+                        if child:IsA("Model") and child:FindFirstChildOfClass("Humanoid") and not Engine.Services.Players:GetPlayerFromCharacter(child) then
+                            table.insert(list, child)
+                        end
+                    end
+                end
+                self.CachedAnimals = list
+            end
+        end)
+
+        Engine.Services.RunService.RenderStepped:Connect(function()
+            self:Update()
+        end)
+    end,
+
+    RemoveDrawings = function(self, drawings)
+        for _, d in pairs(drawings) do
+            pcall(function() if d and d.Remove then d:Remove() end end)
+        end
+    end,
+
+    Update = function(self)
+        local settings = Engine.Modules.ConfigManager.Settings
+        if not settings.ESP_Enabled then
+            for objKey, drawings in pairs(self.Cache) do
+                for _, d in pairs(drawings) do pcall(function() d.Visible = false end) end
+            end
+            if self.TargetDrawings then
+                pcall(function() self.TargetDrawings.Ring.Visible = false end)
+                pcall(function() self.TargetDrawings.Label.Visible = false end)
+            end
+            return
+        end
+
+        local myChar = LocalPlayer.Character
+        local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myHRP then return end
+        local myPos = myHRP.Position
+
+        local activeKeys = {}
+
+        local function processModel(model, name, role, isAnimal)
+            if not model or not model.Parent then return end
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            local hrp = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+            if not hum or hum.Health <= 0 or not hrp then return end
+
+            local dist = (hrp.Position - myPos).Magnitude
+            if dist > (settings.ESP_MaxDistance or 1500) then return end
+
+            local filter = settings.ESP_Filter or "All"
+            if filter == "OOF Only" and role ~= "OOF" and not isAnimal then return end
+            if filter == "Zookeeper Only" and role ~= "ZOOKEEPER" then return end
+            if filter == "Animals Only" and not isAnimal then return end
+            if filter == "Target Only" and Engine.State.CurrentTarget ~= hrp then return end
+
+            local key = model:GetDebugId()
+            activeKeys[key] = true
+
+            local drawings = self.Cache[key]
+            if not drawings then
+                drawings = self:CreateDrawings()
+                self.Cache[key] = drawings
+            end
+
+            local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local roleColor = self:GetRoleColor(role, isAnimal)
+
+            if onScreen then
+                pcall(function() drawings.ArrowText.Visible = false end)
+
+                local head = model:FindFirstChild("Head")
+                local topPos = head and (head.Position + Vector3.new(0, 1.2, 0)) or (hrp.Position + Vector3.new(0, 3, 0))
+                local bottomPos = hrp.Position - Vector3.new(0, 3, 0)
+                
+                local topScreen = Camera:WorldToViewportPoint(topPos)
+                local bottomScreen = Camera:WorldToViewportPoint(bottomPos)
+                
+                local boxHeight = math.abs(bottomScreen.Y - topScreen.Y)
+                local boxWidth = boxHeight * 0.65
+                local boxPos = Vector2.new(screenPos.X - boxWidth / 2, topScreen.Y)
+
+                if settings.ESP_Box2D then
+                    pcall(function()
+                        drawings.BoxOutline.Size = Vector2.new(boxWidth, boxHeight)
+                        drawings.BoxOutline.Position = boxPos
+                        drawings.BoxOutline.Color = Color3.fromRGB(0, 0, 0)
+                        drawings.BoxOutline.Thickness = 3
+                        drawings.BoxOutline.Filled = false
+                        drawings.BoxOutline.Visible = true
+
+                        drawings.Box.Size = Vector2.new(boxWidth, boxHeight)
+                        drawings.Box.Position = boxPos
+                        drawings.Box.Color = roleColor
+                        drawings.Box.Thickness = 1.5
+                        drawings.Box.Filled = false
+                        drawings.Box.Visible = true
+                    end)
+                else
+                    pcall(function()
+                        drawings.BoxOutline.Visible = false
+                        drawings.Box.Visible = false
+                    end)
+                end
+
+                if settings.ESP_Name then
+                    pcall(function()
+                        drawings.Name.Text = string.format("[%s] %s", isAnimal and "ANIMAL" or role, name)
+                        drawings.Name.Position = Vector2.new(screenPos.X, boxPos.Y - 16)
+                        drawings.Name.Color = roleColor
+                        drawings.Name.Size = 12
+                        drawings.Name.Center = true
+                        drawings.Name.Outline = true
+                        drawings.Name.Visible = true
+                    end)
+                else
+                    pcall(function() drawings.Name.Visible = false end)
+                end
+
+                if settings.ESP_Distance then
+                    pcall(function()
+                        drawings.Distance.Text = string.format("%d studs", math.floor(dist))
+                        drawings.Distance.Position = Vector2.new(screenPos.X, boxPos.Y + boxHeight + 2)
+                        drawings.Distance.Color = Color3.fromRGB(220, 220, 220)
+                        drawings.Distance.Size = 11
+                        drawings.Distance.Center = true
+                        drawings.Distance.Outline = true
+                        drawings.Distance.Visible = true
+                    end)
+                else
+                    pcall(function() drawings.Distance.Visible = false end)
+                end
+
+                if settings.ESP_HealthBar then
+                    pcall(function()
+                        local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                        local barWidth = 4
+                        local barPos = Vector2.new(boxPos.X - barWidth - 4, boxPos.Y)
+                        
+                        drawings.HealthOutline.Size = Vector2.new(barWidth, boxHeight)
+                        drawings.HealthOutline.Position = barPos
+                        drawings.HealthOutline.Color = Color3.fromRGB(0, 0, 0)
+                        drawings.HealthOutline.Thickness = 1
+                        drawings.HealthOutline.Filled = true
+                        drawings.HealthOutline.Visible = true
+
+                        local fillHeight = boxHeight * hpPercent
+                        drawings.HealthFill.Size = Vector2.new(barWidth - 2, fillHeight)
+                        drawings.HealthFill.Position = Vector2.new(barPos.X + 1, barPos.Y + (boxHeight - fillHeight))
+                        drawings.HealthFill.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 100), hpPercent)
+                        drawings.HealthFill.Thickness = 1
+                        drawings.HealthFill.Filled = true
+                        drawings.HealthFill.Visible = true
+                    end)
+                else
+                    pcall(function()
+                        drawings.HealthOutline.Visible = false
+                        drawings.HealthFill.Visible = false
+                    end)
+                end
+
+                if settings.ESP_Tracer then
+                    pcall(function()
+                        local viewportSize = Camera.ViewportSize
+                        local startPos = Vector2.new(viewportSize.X / 2, viewportSize.Y)
+                        if settings.ESP_TracerMode == "Center" then
+                            startPos = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
+                        elseif settings.ESP_TracerMode == "Top" then
+                            startPos = Vector2.new(viewportSize.X / 2, 0)
+                        end
+                        drawings.Tracer.From = startPos
+                        drawings.Tracer.To = Vector2.new(screenPos.X, boxPos.Y + boxHeight)
+                        drawings.Tracer.Color = roleColor
+                        drawings.Tracer.Thickness = 1.2
+                        drawings.Tracer.Visible = true
+                    end)
+                else
+                    pcall(function() drawings.Tracer.Visible = false end)
+                end
+            else
+                pcall(function()
+                    drawings.BoxOutline.Visible = false
+                    drawings.Box.Visible = false
+                    drawings.Name.Visible = false
+                    drawings.Distance.Visible = false
+                    drawings.HealthOutline.Visible = false
+                    drawings.HealthFill.Visible = false
+                    drawings.Tracer.Visible = false
+                end)
+
+                if settings.ESP_OffscreenArrow then
+                    pcall(function()
+                        local screenCenter = Camera.ViewportSize / 2
+                        local objectSpace = Camera.CFrame:PointToObjectSpace(hrp.Position)
+                        local dir = Vector2.new(-objectSpace.X, objectSpace.Z).Unit
+                        
+                        local margin = 60
+                        local arrowPos = screenCenter + dir * (math.min(screenCenter.X, screenCenter.Y) - margin)
+
+                        drawings.ArrowText.Text = string.format("▲ %d m", math.floor(dist))
+                        drawings.ArrowText.Position = arrowPos
+                        drawings.ArrowText.Color = roleColor
+                        drawings.ArrowText.Size = 12
+                        drawings.ArrowText.Center = true
+                        drawings.ArrowText.Outline = true
+                        drawings.ArrowText.Visible = true
+                    end)
+                else
+                    pcall(function() drawings.ArrowText.Visible = false end)
+                end
+            end
+        end
+
+        for _, plr in ipairs(Engine.Services.Players:GetPlayers()) do
+            if plr ~= LocalPlayer and plr.Character then
+                local role = DeterminePlayerRole(plr)
+                processModel(plr.Character, plr.Name, role, false)
+            end
+        end
+
+        for _, animal in ipairs(self.CachedAnimals or {}) do
+            if animal and animal.Parent then
+                processModel(animal, animal.Name, "OOF", true)
+            end
+        end
+
+        if settings.ESP_TargetHighlight and Engine.State.CurrentTarget and Engine.State.CurrentTarget.Parent then
+            pcall(function()
+                local tPos = Engine.State.CurrentTarget.Position
+                local screenPos, onScreen = Camera:WorldToViewportPoint(tPos)
+                if onScreen then
+                    self.TargetDrawings.Ring.Position = Vector2.new(screenPos.X, screenPos.Y)
+                    self.TargetDrawings.Ring.Radius = math.clamp(3500 / screenPos.Z, 15, 60)
+                    self.TargetDrawings.Ring.Visible = true
+
+                    self.TargetDrawings.Label.Text = "🎯 TARGET"
+                    self.TargetDrawings.Label.Position = Vector2.new(screenPos.X, screenPos.Y - self.TargetDrawings.Ring.Radius - 16)
+                    self.TargetDrawings.Label.Visible = true
+                else
+                    self.TargetDrawings.Ring.Visible = false
+                    self.TargetDrawings.Label.Visible = false
+                end
+            end)
+        else
+            if self.TargetDrawings then
+                pcall(function()
+                    self.TargetDrawings.Ring.Visible = false
+                    self.TargetDrawings.Label.Visible = false
+                end)
+            end
+        end
+
+        for key, drawings in pairs(self.Cache) do
+            if not activeKeys[key] then
+                self:RemoveDrawings(drawings)
+                self.Cache[key] = nil
+            end
+        end
     end
 }
 
@@ -1624,8 +2079,28 @@ LocalPlayer.CharacterAdded:Connect(function()
     Engine.Modules.FarmManager:Stop()
     task.wait(1.5)
     Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
-    if Engine.Modules.ConfigManager.Settings.AutoFarm then
+    if Engine.Modules.ConfigManager.Settings.AutoFarm and (Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "OOF") then
         Engine.Modules.FarmManager:Start()
+    end
+end)
+
+local lastDetectedRole = DeterminePlayerRole(LocalPlayer)
+Engine.Services.RunService.Heartbeat:Connect(function()
+    local currentRole = DeterminePlayerRole(LocalPlayer)
+    if currentRole ~= lastDetectedRole then
+        local oldRole = lastDetectedRole
+        lastDetectedRole = currentRole
+        Engine.State.CurrentRole = currentRole
+        Engine.Modules.NotificationManager:Notify("Role Changed!", string.format("🔄 Role vừa đổi: %s ➔ %s", oldRole, currentRole), 3.5)
+        
+        if Engine.Modules.ConfigManager.Settings.AutoFarm then
+            if currentRole == "ZOOKEEPER" or currentRole == "OOF" then
+                Engine.Modules.FarmManager:Start()
+            else
+                Engine.Modules.FarmManager:Stop()
+                Engine.Modules.NotificationManager:Notify("Auto Farm Guard", "⚠️ Tự động dừng Auto Farm vì đã thành NEUTRAL (Human)!", 3.5)
+            end
+        end
     end
 end)
 
@@ -1666,25 +2141,13 @@ Engine.Modules.UIController = {
         table.insert(self.ChromaObjects, logoGlowRing)
         
         local logoAsset = Engine:GetLogoAsset()
-        if logoAsset then
-            local logoImg = Instance.new("ImageLabel")
-            logoImg.Size = UDim2.new(1, 0, 1, 0)
-            logoImg.BackgroundTransparency = 1
-            logoImg.Image = logoAsset
-            logoImg.ScaleType = Enum.ScaleType.Crop
-            logoImg.Parent = self.LogoButton
-            Instance.new("UICorner", logoImg).CornerRadius = UDim.new(1, 0)
-        else
-            local logoText = Instance.new("TextLabel")
-            logoText.Size = UDim2.new(1, 0, 1, 0)
-            logoText.BackgroundTransparency = 1
-            logoText.Text = "⚡ CLASS\nQUID"
-            logoText.Font = Enum.Font.GothamBlack
-            logoText.TextColor3 = Color3.fromRGB(0, 240, 255)
-            logoText.TextSize = 10
-            logoText.Parent = self.LogoButton
-            table.insert(self.ChromaObjects, logoText)
-        end
+        local logoImg = Instance.new("ImageLabel")
+        logoImg.Size = UDim2.new(1, 0, 1, 0)
+        logoImg.BackgroundTransparency = 1
+        if logoAsset then logoImg.Image = logoAsset end
+        logoImg.ScaleType = Enum.ScaleType.Crop
+        logoImg.Parent = self.LogoButton
+        Instance.new("UICorner", logoImg).CornerRadius = UDim.new(1, 0)
         
         local logoStroke = Instance.new("UIStroke")
         logoStroke.Thickness = 2.5
@@ -1693,22 +2156,12 @@ Engine.Modules.UIController = {
         table.insert(self.ChromaObjects, logoStroke)
         table.insert(self.ChromaObjects, self.LogoButton)
         
-        -- Tự động retry thay thế logo bun.jpg khi tải xong từ Server
+        -- Tự động retry cập nhật logo bun.jpg khi tải xong từ Server
         task.spawn(function()
-            task.wait(0.6)
-            if self.LogoButton and not self.LogoButton:FindFirstChildOfClass("ImageLabel") then
-                local retryAsset = Engine:GetLogoAsset()
-                if retryAsset then
-                    local oldText = self.LogoButton:FindFirstChildOfClass("TextLabel")
-                    if oldText then oldText:Destroy() end
-                    local logoImg = Instance.new("ImageLabel")
-                    logoImg.Size = UDim2.new(1, 0, 1, 0)
-                    logoImg.BackgroundTransparency = 1
-                    logoImg.Image = retryAsset
-                    logoImg.ScaleType = Enum.ScaleType.Crop
-                    logoImg.Parent = self.LogoButton
-                    Instance.new("UICorner", logoImg).CornerRadius = UDim.new(1, 0)
-                end
+            task.wait(0.5)
+            local retryAsset = Engine:GetLogoAsset()
+            if retryAsset and logoImg.Image ~= retryAsset then
+                logoImg.Image = retryAsset
             end
         end)
         
@@ -1739,31 +2192,36 @@ Engine.Modules.UIController = {
         topBar.Parent = self.MainFrame
 
         local headerLogoAsset = Engine:GetLogoAsset()
-        local titleLeftPos = 15
-        if headerLogoAsset then
-            local headerLogoFrame = Instance.new("Frame")
-            headerLogoFrame.Size = UDim2.new(0, 36, 0, 36)
-            headerLogoFrame.Position = UDim2.new(0, 15, 0, 9)
-            headerLogoFrame.BackgroundColor3 = Color3.fromRGB(20, 28, 45)
-            headerLogoFrame.Parent = topBar
-            Instance.new("UICorner", headerLogoFrame).CornerRadius = UDim.new(0, 10)
+        local titleLeftPos = 60
 
-            local headerLogoImg = Instance.new("ImageLabel")
-            headerLogoImg.Size = UDim2.new(1, 0, 1, 0)
-            headerLogoImg.BackgroundTransparency = 1
-            headerLogoImg.Image = headerLogoAsset
-            headerLogoImg.ScaleType = Enum.ScaleType.Crop
-            headerLogoImg.Parent = headerLogoFrame
-            Instance.new("UICorner", headerLogoImg).CornerRadius = UDim.new(0, 10)
+        local headerLogoFrame = Instance.new("Frame")
+        headerLogoFrame.Size = UDim2.new(0, 36, 0, 36)
+        headerLogoFrame.Position = UDim2.new(0, 15, 0, 9)
+        headerLogoFrame.BackgroundColor3 = Color3.fromRGB(20, 28, 45)
+        headerLogoFrame.Parent = topBar
+        Instance.new("UICorner", headerLogoFrame).CornerRadius = UDim.new(0, 10)
 
-            local headerLogoStroke = Instance.new("UIStroke")
-            headerLogoStroke.Thickness = 1.5
-            headerLogoStroke.Color = Color3.fromRGB(0, 240, 255)
-            headerLogoStroke.Parent = headerLogoFrame
-            table.insert(self.ChromaObjects, headerLogoStroke)
+        local headerLogoImg = Instance.new("ImageLabel")
+        headerLogoImg.Size = UDim2.new(1, 0, 1, 0)
+        headerLogoImg.BackgroundTransparency = 1
+        if headerLogoAsset then headerLogoImg.Image = headerLogoAsset end
+        headerLogoImg.ScaleType = Enum.ScaleType.Crop
+        headerLogoImg.Parent = headerLogoFrame
+        Instance.new("UICorner", headerLogoImg).CornerRadius = UDim.new(0, 10)
 
-            titleLeftPos = 60
-        end
+        local headerLogoStroke = Instance.new("UIStroke")
+        headerLogoStroke.Thickness = 1.5
+        headerLogoStroke.Color = Color3.fromRGB(0, 240, 255)
+        headerLogoStroke.Parent = headerLogoFrame
+        table.insert(self.ChromaObjects, headerLogoStroke)
+
+        task.spawn(function()
+            task.wait(0.5)
+            local retryAsset = Engine:GetLogoAsset()
+            if retryAsset and headerLogoImg.Image ~= retryAsset then
+                headerLogoImg.Image = retryAsset
+            end
+        end)
 
         local title = Instance.new("TextLabel")
         title.Size = UDim2.new(1, -(titleLeftPos + 275), 0, 26)
@@ -1855,18 +2313,21 @@ Engine.Modules.UIController = {
         
         self:BuildTabs(contentArea)
         
-        Engine.Services.RunService.RenderStepped:Connect(function()
-            local hue = tick() % 6 / 6
-            local color = Color3.fromHSV(hue, 0.75, 1)
-            for _, obj in ipairs(self.ChromaObjects) do
-                if obj and obj.Parent then
-                    if obj:IsA("UIStroke") then obj.Color = color
-                    elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then obj.TextColor3 = color
-                    elseif obj:IsA("Frame") and (obj.Size.Y.Offset == 1 or obj.Name == "ToggledBG") then obj.BackgroundColor3 = color end
+        task.spawn(function()
+            while task.wait(0.08) do
+                local hue = (tick() % 6) / 6
+                local color = Color3.fromHSV(hue, 0.75, 1)
+                for _, obj in ipairs(self.ChromaObjects) do
+                    if obj and obj.Parent then
+                        if obj:IsA("UIStroke") then obj.Color = color
+                        elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then obj.TextColor3 = color
+                        elseif obj:IsA("Frame") and (obj.Size.Y.Offset == 1 or obj.Name == "ToggledBG") then obj.BackgroundColor3 = color end
+                    end
                 end
             end
         end)
         
+        -- HOTKEYS QUICK CONTROLS: P (Farm), M (Aimbot), F (Fly), Q/E (Skill), RightShift (UI)
         Engine.Services.UIS.InputBegan:Connect(function(input)
             if Engine.Services.UIS:GetFocusedTextBox() then return end
             if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -1890,7 +2351,23 @@ Engine.Modules.UIController = {
                     self.Toggles["AutoFarm"](newState)
                 end
 
-                Engine.Modules.NotificationManager:Notify("Hotkey Triggered", "Hunter AI Auto Farm: " .. (newState and "BẬT [ON]" or "TẮT [OFF]"), 2)
+                Engine.Modules.NotificationManager:Notify("Hotkey [P]", "Hunter AI Auto Farm: " .. (newState and "BẬT [ON]" or "TẮT [OFF]"), 2)
+            elseif input.KeyCode == Enum.KeyCode.M then
+                local newState = not Engine.Modules.ConfigManager.Settings.Aimbot
+                Engine.Modules.ConfigManager.Settings.Aimbot = newState
+                Engine.Modules.ConfigManager:Save()
+                if self.Toggles["Aimbot"] then self.Toggles["Aimbot"](newState) end
+                Engine.Modules.NotificationManager:Notify("Hotkey [M]", "Smart Aimbot: " .. (newState and "BẬT [ON]" or "TẮT [OFF]"), 2)
+            elseif input.KeyCode == Enum.KeyCode.F then
+                local newState = not Engine.Modules.ConfigManager.Settings.Fly
+                Engine.Modules.ConfigManager.Settings.Fly = newState
+                Engine.Modules.ConfigManager:Save()
+                if self.Toggles["Fly"] then self.Toggles["Fly"](newState) end
+                Engine.Modules.NotificationManager:Notify("Hotkey [F]", "Fly Mode: " .. (newState and "BẬT [ON]" or "TẮT [OFF]"), 2)
+            elseif input.KeyCode == Enum.KeyCode.Q or input.KeyCode == Enum.KeyCode.E then
+                if Engine.Modules.ConfigManager.Settings.AutoSkill then
+                    Engine.Modules.NotificationManager:Notify("Skill Hotkey", "Skill Activated! [" .. input.KeyCode.Name .. "]", 1.5)
+                end
             end
         end)
     end,
@@ -1963,6 +2440,7 @@ Engine.Modules.UIController = {
         local pageCombat = createTab("⚡ Combat AI", false)
         local pageFarm = createTab("🤖 Automation", false)
         local pageMovement = createTab("🚀 Movement", false)
+        local pageESP = createTab("👁️ ESP Visuals", false)
         local pageKey = createTab("🔑 Key System", false)
         local pageLang = createTab("🌐 Language", false)
         
@@ -1997,6 +2475,16 @@ Engine.Modules.UIController = {
         self:CreateSlider(pageMovement, "Speed Value", 16, 100, "SpeedValue")
         self:CreateToggle(pageMovement, "Noclip", "Noclip")
         self:CreateToggle(pageMovement, "Infinite Jump", "InfJump")
+        
+        self:CreateToggle(pageESP, "Kích hoạt ESP Engine", "ESP_Enabled")
+        self:CreateToggle(pageESP, "ESP Khung 2D (Box)", "ESP_Box2D")
+        self:CreateToggle(pageESP, "ESP Tên & Role", "ESP_Name")
+        self:CreateToggle(pageESP, "ESP Khoảng cách", "ESP_Distance")
+        self:CreateToggle(pageESP, "ESP Thanh Máu (HP Bar)", "ESP_HealthBar")
+        self:CreateToggle(pageESP, "ESP Đường dẫn (Tracer)", "ESP_Tracer")
+        self:CreateToggle(pageESP, "Mũi tên chỉ hướng (Off-screen)", "ESP_OffscreenArrow")
+        self:CreateToggle(pageESP, "Vòng sáng Khóa Target", "ESP_TargetHighlight")
+        self:CreateSlider(pageESP, "Khoảng cách ESP tối đa", 100, 3000, "ESP_MaxDistance")
         
         local btnSwitchLang = Instance.new("TextButton")
         btnSwitchLang.Size = UDim2.new(1, -10, 0, 48)
@@ -2056,9 +2544,11 @@ Engine.Modules.UIController = {
         keyTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
         keyTimeLabel.Parent = keyCard
         
-        Engine.Services.RunService.RenderStepped:Connect(function()
-            if pageKey.Visible then
-                keyTimeLabel.Text = "Thời gian còn lại: " .. Engine.Modules.KeySystem:GetRemainingTime()
+        task.spawn(function()
+            while task.wait(1) do
+                if pageKey and pageKey.Visible then
+                    keyTimeLabel.Text = "Thời gian còn lại: " .. Engine.Modules.KeySystem:GetRemainingTime()
+                end
             end
         end)
 
@@ -2252,6 +2742,7 @@ Engine.BootAfterKey = function(self)
     self.Modules.HunterHUD:Init()
     self.Modules.UIController:Init()
     self.Modules.TeamForce:Init()
+    self.Modules.ESPManager:Init()
     self.Status = "Running"
     
     self.Modules.NotificationManager:Notify("RB ZOO CLASS QUID V8.5", "Khởi động thành công! Bản quyền: " .. Engine.Author, 5)
