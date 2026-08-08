@@ -96,24 +96,8 @@ Engine.Services = {
 local LocalPlayer = Engine.Services.Players.LocalPlayer
 local Camera = Engine.Services.Workspace.CurrentCamera
 
--- Tự động lắng nghe tất cả RemoteEvent trong ReplicatedStorage để dập tắt cảnh báo (discarded event) từ Roblox Engine
-task.spawn(function()
-    local repStorage = Engine.Services.ReplicatedStorage
-    local function silenceRemote(obj)
-        if obj:IsA("RemoteEvent") then
-            pcall(function()
-                obj.OnClientEvent:Connect(function() end)
-            end)
-        end
-    end
+-- Services & Globals Initialization
 
-    pcall(function()
-        for _, obj in ipairs(repStorage:GetDescendants()) do
-            silenceRemote(obj)
-        end
-        repStorage.DescendantAdded:Connect(silenceRemote)
-    end)
-end)
 
 -- ==========================================
 -- [2] CONFIG MANAGER
@@ -124,6 +108,7 @@ Engine.Modules.ConfigManager = {
         Fly = false, FlySpeed = 120, Speed = false, SpeedValue = 20, Noclip = false, InfJump = false, HitboxSize = 4,
         AutoAttack = true, AutoSkill = true, AutoMoney = true, AntiAFK = true, ShowHUD = true, FPSBooster = true,
         AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 75, SmartMovement = true, AntiStuck = true,
+        AutoDodge = true, DodgeRadius = 15, DodgeSpeed = 1.4,
         ForceZookeeper = true, SmartWallBypass = true, Language = "VN",
         ESP_Enabled = true, ESP_Box2D = true, ESP_Name = true, ESP_Distance = true,
         ESP_HealthBar = true, ESP_Skeleton = false, ESP_Tracer = false, ESP_TracerMode = "Bottom",
@@ -211,6 +196,14 @@ Engine.Modules.I18n = {
             TabKey = "🔑 Hệ Thống Key",
             TabLanguage = "🌐 Ngôn Ngữ (Language)",
             
+            SecTeam = "🎯 CẤU HÌNH PHE & HỆ THỐNG",
+            SecCombat = "⚡ COMBAT & SMART AIMBOT",
+            SecFarm = "🤖 AUTO FARM & OOF MATRIX DODGE",
+            SecMovement = "🚀 FLIGHT & MOVEMENT ENGINE",
+            SecESP = "👁️ VISUAL ESP ENGINE",
+            SecKey = "🔑 HỆ THỐNG KEY & ACC",
+            SecLang = "🌐 CÀI ĐẶT NGÔN NGỮ",
+            
             ForceZoo = "Ép phe Zookeeper 100%",
             ShowHUD = "Hiển thị HUD Hunter",
             FPSBooster = "Tối ưu FPS (Fix Lag)",
@@ -223,6 +216,8 @@ Engine.Modules.I18n = {
             HitboxSize = "Mở rộng Hitbox",
             
             AutoFarm = "Hunter AI Auto Farm [P]",
+            AutoDodge = "Skill Né Đạn Tự Động (OOF Matrix Dodge)",
+            DodgeRadius = "Bán Kính Né Đạn (Dodge Radius)",
             SmartWallBypass = "Fix Dính Tường (Smart Bypass)",
             AutoFarmSpeed = "Tốc độ di chuyển Hunter",
             AutoFarmHeight = "Độ cao bay (Phe OOF)",
@@ -287,6 +282,14 @@ Engine.Modules.I18n = {
             TabKey = "🔑 Key System",
             TabLanguage = "🌐 Language (Ngôn Ngữ)",
             
+            SecTeam = "🎯 TEAM & SYSTEM SETUP",
+            SecCombat = "⚡ COMBAT & SMART AIMBOT",
+            SecFarm = "🤖 AUTO FARM & OOF MATRIX DODGE",
+            SecMovement = "🚀 FLIGHT & MOVEMENT ENGINE",
+            SecESP = "👁️ VISUAL ESP ENGINE",
+            SecKey = "🔑 ACCOUNT & KEY SYSTEM",
+            SecLang = "🌐 LANGUAGE SETTINGS",
+            
             ForceZoo = "Force Zookeeper 100%",
             ShowHUD = "Show Hunter HUD",
             FPSBooster = "FPS Booster (Fix Lag)",
@@ -299,6 +302,8 @@ Engine.Modules.I18n = {
             HitboxSize = "Expand Hitbox",
             
             AutoFarm = "Hunter AI Auto Farm [P]",
+            AutoDodge = "Auto Dodge Bullets (OOF Matrix Dodge)",
+            DodgeRadius = "Dodge Radius",
             SmartWallBypass = "Fix Wall Stuck (Smart Bypass)",
             AutoFarmSpeed = "Hunter Movement Speed",
             AutoFarmHeight = "Flight Height (OOF Role)",
@@ -484,11 +489,12 @@ Engine.Modules.LoadingScreen = {
 
         local totalDuration = 0.6
         local startTime = tick()
+        Engine.Services.TweenService:Create(barFill, TweenInfo.new(totalDuration, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+
         while tick() - startTime < totalDuration do
             local elapsed = tick() - startTime
             local progress = math.clamp(elapsed / totalDuration, 0, 1)
 
-            Engine.Services.TweenService:Create(barFill, TweenInfo.new(0.05), {Size = UDim2.new(progress, 0, 1, 0)}):Play()
             percentLabel.Text = math.floor(progress * 100) .. "%"
             stroke.Color = Color3.fromHSV((tick() * 2) % 1, 0.8, 1)
 
@@ -499,7 +505,7 @@ Engine.Modules.LoadingScreen = {
             else statusLabel.Text = steps[5].text
             end
 
-            Engine.Services.RunService.RenderStepped:Wait()
+            task.wait(0.05)
         end
 
         barFill.Size = UDim2.new(1, 0, 1, 0)
@@ -1025,7 +1031,7 @@ Engine.Modules.NotificationManager = {
         local layout = Instance.new("UIListLayout")
         layout.SortOrder = Enum.SortOrder.LayoutOrder
         layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-        layout.Padding = UDim.new(0, 10)
+        layout.Padding = UDim.new(0, 8)
         layout.Parent = self.Container
     end,
     
@@ -1034,55 +1040,76 @@ Engine.Modules.NotificationManager = {
         if not self.Container then self:Init() end
         
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 65)
-        frame.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
+        frame.Size = UDim2.new(1, 0, 0, 68)
+        frame.BackgroundColor3 = Color3.fromRGB(10, 14, 22)
         frame.BackgroundTransparency = 1
+        frame.ClipsDescendants = true
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
         
         local stroke = Instance.new("UIStroke")
-        stroke.Thickness = 1.5
+        stroke.Thickness = 1.4
         stroke.Transparency = 1
-        stroke.Color = Color3.fromRGB(0, 255, 200)
+        stroke.Color = Color3.fromRGB(0, 240, 255)
         stroke.Parent = frame
         
+        local accentBar = Instance.new("Frame")
+        accentBar.Size = UDim2.new(0, 4, 1, 0)
+        accentBar.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        accentBar.BackgroundTransparency = 1
+        accentBar.Parent = frame
+        Instance.new("UICorner", accentBar).CornerRadius = UDim.new(0, 4)
+        
         local titleLabel = Instance.new("TextLabel")
-        titleLabel.Size = UDim2.new(1, -15, 0, 25)
-        titleLabel.Position = UDim2.new(0, 15, 0, 5)
+        titleLabel.Size = UDim2.new(1, -24, 0, 22)
+        titleLabel.Position = UDim2.new(0, 16, 0, 8)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Text = title
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         titleLabel.TextTransparency = 1
-        titleLabel.Font = Enum.Font.GothamBold
-        titleLabel.TextSize = 13
+        titleLabel.Font = Enum.Font.GothamBlack
+        titleLabel.TextSize = 12
         titleLabel.TextXAlignment = Enum.TextXAlignment.Left
         titleLabel.Parent = frame
         
         local textLabel = Instance.new("TextLabel")
-        textLabel.Size = UDim2.new(1, -15, 0, 25)
-        textLabel.Position = UDim2.new(0, 15, 0, 30)
+        textLabel.Size = UDim2.new(1, -24, 0, 26)
+        textLabel.Position = UDim2.new(0, 16, 0, 30)
         textLabel.BackgroundTransparency = 1
         textLabel.Text = text
-        textLabel.TextColor3 = Color3.fromRGB(210, 220, 235)
+        textLabel.TextColor3 = Color3.fromRGB(190, 205, 225)
         textLabel.TextTransparency = 1
         textLabel.Font = Enum.Font.GothamMedium
-        textLabel.TextSize = 11
+        textLabel.TextSize = 10.5
+        textLabel.TextWrapped = true
         textLabel.TextXAlignment = Enum.TextXAlignment.Left
         textLabel.Parent = frame
+
+        local timerBar = Instance.new("Frame")
+        timerBar.Size = UDim2.new(1, 0, 0, 3)
+        timerBar.Position = UDim2.new(0, 0, 1, -3)
+        timerBar.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        timerBar.BackgroundTransparency = 1
+        timerBar.Parent = frame
         
         frame.Parent = self.Container
         
-        local TweenInfoIn = TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
-        Engine.Services.TweenService:Create(frame, TweenInfoIn, {BackgroundTransparency = 0.3}):Play()
-        Engine.Services.TweenService:Create(stroke, TweenInfoIn, {Transparency = 0.4}):Play()
+        local TweenInfoIn = TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+        Engine.Services.TweenService:Create(frame, TweenInfoIn, {BackgroundTransparency = 0.22}):Play()
+        Engine.Services.TweenService:Create(stroke, TweenInfoIn, {Transparency = 0.35}):Play()
+        Engine.Services.TweenService:Create(accentBar, TweenInfoIn, {BackgroundTransparency = 0}):Play()
         Engine.Services.TweenService:Create(titleLabel, TweenInfoIn, {TextTransparency = 0}):Play()
         Engine.Services.TweenService:Create(textLabel, TweenInfoIn, {TextTransparency = 0}):Play()
+        Engine.Services.TweenService:Create(timerBar, TweenInfoIn, {BackgroundTransparency = 0.2}):Play()
+        Engine.Services.TweenService:Create(timerBar, TweenInfo.new(duration, Enum.EasingStyle.Linear), {Size = UDim2.new(0, 0, 0, 3)}):Play()
         
         task.delay(duration, function()
             if frame and frame.Parent then
                 Engine.Services.TweenService:Create(frame, TweenInfoIn, {BackgroundTransparency = 1}):Play()
                 Engine.Services.TweenService:Create(stroke, TweenInfoIn, {Transparency = 1}):Play()
+                Engine.Services.TweenService:Create(accentBar, TweenInfoIn, {BackgroundTransparency = 1}):Play()
                 Engine.Services.TweenService:Create(titleLabel, TweenInfoIn, {TextTransparency = 1}):Play()
                 Engine.Services.TweenService:Create(textLabel, TweenInfoIn, {TextTransparency = 1}):Play()
+                Engine.Services.TweenService:Create(timerBar, TweenInfoIn, {BackgroundTransparency = 1}):Play()
                 task.wait(0.4)
                 frame:Destroy()
             end
@@ -1236,7 +1263,9 @@ Engine.Modules.HunterHUD = {
         addLabel("Author", "👑 Author: " .. Engine.Author).LayoutOrder = 10
         
         task.spawn(function()
+            local ticks = 0
             while task.wait(0.1) do
+                ticks = ticks + 1
                 if not Engine.Modules.ConfigManager.Settings.ShowHUD then
                     frame.Visible = false
                 else
@@ -1244,49 +1273,59 @@ Engine.Modules.HunterHUD = {
                     
                     stroke.Color = Color3.fromHSV((tick() * 0.2) % 1, 0.75, 1)
                     
-                    local role = DeterminePlayerRole(LocalPlayer)
-                    Engine.State.CurrentRole = role
-                    
-                    local roleStr = "🟢 NEUTRAL (Human)"
-                    local roleColor = Color3.fromRGB(50, 255, 100)
-                    if role == "ZOOKEEPER" then
-                        roleStr = "🔴 ZOOKEEPER (Zoo)"
-                        roleColor = Color3.fromRGB(255, 60, 60)
-                    elseif role == "OOF" then
-                        roleStr = "🔵 OOF (Animal)"
-                        roleColor = Color3.fromRGB(0, 150, 255)
-                    end
-                    self.Labels.Role.Text = "Role: " .. roleStr
-                    self.Labels.Role.TextColor3 = roleColor
-                    
-                    local targetName = "None"
-                    local distStr = "N/A"
-                    local statusStr = Engine.Modules.ConfigManager.Settings.AutoFarm and "Hunting" or "Idle"
-                    
-                    if Engine.State.CurrentTarget and Engine.State.CurrentTarget.Parent then
-                        targetName = Engine.State.CurrentTarget.Parent.Name
-                        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            local d = math.floor((Engine.State.CurrentTarget.Position - hrp.Position).Magnitude)
-                            distStr = tostring(d) .. " studs"
+                    -- Interval 0.2s (2 ticks): Role, Target, Distance, Status, Hotkeys
+                    if ticks % 2 == 0 then
+                        local role = DeterminePlayerRole(LocalPlayer)
+                        Engine.State.CurrentRole = role
+                        
+                        local roleStr = "🟢 NEUTRAL (Human)"
+                        local roleColor = Color3.fromRGB(50, 255, 100)
+                        if role == "ZOOKEEPER" then
+                            roleStr = "🔴 ZOOKEEPER (Zoo)"
+                            roleColor = Color3.fromRGB(255, 60, 60)
+                        elseif role == "OOF" then
+                            roleStr = "🔵 OOF (Animal)"
+                            roleColor = Color3.fromRGB(0, 150, 255)
                         end
-                        statusStr = "LOCKED & FIRING"
+                        self.Labels.Role.Text = "Role: " .. roleStr
+                        self.Labels.Role.TextColor3 = roleColor
+                        
+                        local targetName = "None"
+                        local distStr = "N/A"
+                        local statusStr = Engine.Modules.ConfigManager.Settings.AutoFarm and "Hunting" or "Idle"
+                        
+                        if Engine.State.CurrentTarget and Engine.State.CurrentTarget.Parent then
+                            targetName = Engine.State.CurrentTarget.Parent.Name
+                            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                local d = math.floor((Engine.State.CurrentTarget.Position - hrp.Position).Magnitude)
+                                distStr = tostring(d) .. " studs"
+                            end
+                            statusStr = "LOCKED & FIRING"
+                        end
+                        
+                        self.Labels.Target.Text = "Target: " .. targetName
+                        self.Labels.Distance.Text = "Distance: " .. distStr
+                        self.Labels.Status.Text = "Status: " .. statusStr
+                        
+                        local farmTxt = Engine.Modules.ConfigManager.Settings.AutoFarm and "ON" or "OFF"
+                        local aimTxt = Engine.Modules.ConfigManager.Settings.Aimbot and "ON" or "OFF"
+                        local flyTxt = Engine.Modules.ConfigManager.Settings.Fly and "ON" or "OFF"
+                        self.Labels.Hotkeys.Text = string.format("⌨️ [P]Farm:%s | [M]Aim:%s", farmTxt, aimTxt)
+                        self.Labels.Hotkeys2.Text = string.format("⌨️ [F]Fly:%s | [Q/E]Skill:AUTO", flyTxt)
                     end
-                    
-                    self.Labels.Target.Text = "Target: " .. targetName
-                    self.Labels.Distance.Text = "Distance: " .. distStr
-                    self.Labels.Status.Text = "Status: " .. statusStr
-                    
-                    local farmTxt = Engine.Modules.ConfigManager.Settings.AutoFarm and "ON" or "OFF"
-                    local aimTxt = Engine.Modules.ConfigManager.Settings.Aimbot and "ON" or "OFF"
-                    local flyTxt = Engine.Modules.ConfigManager.Settings.Fly and "ON" or "OFF"
-                    self.Labels.Hotkeys.Text = string.format("⌨️ [P]Farm:%s | [M]Aim:%s", farmTxt, aimTxt)
-                    self.Labels.Hotkeys2.Text = string.format("⌨️ [F]Fly:%s | [Q/E]Skill:AUTO", flyTxt)
-                    
-                    self.Labels.OofAlive.Text = "OOF Alive: " .. tostring(#Engine.Cache.Oofs)
-                    self.Labels.Kills.Text = "Total Kills: " .. tostring(Engine.Cache.TotalKills)
-                    self.Labels.KeyTime.Text = "⏳ Key Hạn: " .. Engine.Modules.KeySystem:GetRemainingTime()
-                    self.Labels.Author.Text = "👑 Author: " .. Engine.Author
+
+                    -- Interval 0.5s (5 ticks): OOF Alive, Total Kills
+                    if ticks % 5 == 0 then
+                        self.Labels.OofAlive.Text = "OOF Alive: " .. tostring(#Engine.Cache.Oofs)
+                        self.Labels.Kills.Text = "Total Kills: " .. tostring(Engine.Cache.TotalKills)
+                    end
+
+                    -- Interval 1.0s (10 ticks): Key Remaining Time
+                    if ticks % 10 == 0 then
+                        self.Labels.KeyTime.Text = "⏳ Key Hạn: " .. Engine.Modules.KeySystem:GetRemainingTime()
+                        self.Labels.Author.Text = "👑 Author: " .. Engine.Author
+                    end
                 end
             end
         end)
@@ -1397,17 +1436,17 @@ local function IsTargetValid(target)
     return true
 end
 
+local sharedRaycastParams = RaycastParams.new()
+sharedRaycastParams.FilterType = Enum.RaycastFilterType.Exclude
+sharedRaycastParams.IgnoreWater = true
+
 local function CheckLineOfSight(originPos, targetPos, ignoreModel)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    
     local ignoreList = {LocalPlayer.Character}
     if ignoreModel then table.insert(ignoreList, ignoreModel) end
-    raycastParams.FilterDescendantsInstances = ignoreList
-    raycastParams.IgnoreWater = true
+    sharedRaycastParams.FilterDescendantsInstances = ignoreList
 
     local dir = targetPos - originPos
-    local result = Engine.Services.Workspace:Raycast(originPos, dir, raycastParams)
+    local result = Engine.Services.Workspace:Raycast(originPos, dir, sharedRaycastParams)
 
     if result then
         if ignoreModel and result.Instance:IsDescendantOf(ignoreModel) then
@@ -1419,11 +1458,162 @@ local function CheckLineOfSight(originPos, targetPos, ignoreModel)
 end
 
 -- ==========================================
--- [9] FARM & COMBAT ENGINE (SMART WALL BYPASS)
+-- [9] FARM & COMBAT ENGINE (SMART WALL BYPASS & ANTI-LAG)
 -- ==========================================
 Engine.Modules.FarmManager = {
     StuckTracker = { LastPos = Vector3.zero, StuckTime = 0, OffsetVector = Vector3.zero, Blacklist = {} },
-    LastActions = { Attack = 0, Skill = 0, Prompt = 0 },
+    DodgeOffset = Vector3.zero,
+    CachedDodgeVector = Vector3.zero,
+    LastActions = { Attack = 0, Skill = 0, Prompt = 0, Dodge = 0 },
+    DodgeAIState = {
+        ActiveVector = Vector3.zero,
+        LastDirectionTime = 0,
+        CurrentThreatScore = 0,
+        HysteresisCooldown = 0.28,
+        LastDodgeDir = Vector3.zero
+    },
+    
+    -- Smart Dodge AI Engine (Active Tactical Evasion & Line-of-Sight Break)
+    ScanIncomingProjectiles = function(self, myPos)
+        if not Engine.Modules.ConfigManager.Settings.AutoDodge then 
+            self.DodgeAIState.ActiveVector = Vector3.zero
+            return Vector3.zero 
+        end
+        if Engine.State.CurrentRole ~= "OOF" then 
+            self.DodgeAIState.ActiveVector = Vector3.zero
+            return Vector3.zero 
+        end
+        
+        local dodgeRadius = Engine.Modules.ConfigManager.Settings.DodgeRadius or 50
+        local now = tick()
+        local projectiles = {}
+        local totalThreat = 0
+        local highestThreatTimeToImpact = 999
+        
+        -- 1. THREAT ANALYSIS & PROJECTION SCANNING
+        pcall(function()
+            local folder = Engine.Services.Workspace:FindFirstChild("Gameplay") or Engine.Services.Workspace
+            for _, child in ipairs(folder:GetChildren()) do
+                if child:IsA("BasePart") or child:IsA("Model") then
+                    local name = child.Name:lower()
+                    if name:find("bullet") or name:find("proj") or name:find("tranq") or name:find("dart") or name:find("laser") or name:find("ammo") or name:find("net") or name:find("trap") or name:find("shot") or name:find("ball") or name:find("rocket") or name:find("part") or name:find("hitbox") then
+                        local projPos = child:IsA("Model") and (child.PrimaryPart and child.PrimaryPart.Position or child:GetPivot().Position) or child.Position
+                        local dist = (projPos - myPos).Magnitude
+                        
+                        if dist <= dodgeRadius then
+                            local projVel = Vector3.zero
+                            if child:IsA("BasePart") then
+                                projVel = child.AssemblyLinearVelocity
+                            elseif child:IsA("Model") and child.PrimaryPart then
+                                projVel = child.PrimaryPart.AssemblyLinearVelocity
+                            end
+                            
+                            local projSpeed = projVel.Magnitude
+                            local toPlayer = (myPos - projPos).Unit
+                            local isHeadingToMe = false
+                            local timeToImpact = 999
+                            local closestApproachDist = dist
+                            
+                            if projSpeed > 1 then
+                                local projDir = projVel.Unit
+                                local dotProduct = projDir:Dot(toPlayer)
+                                if dotProduct > -0.1 then
+                                    local projToPlayer = myPos - projPos
+                                    local projProjection = projDir * projToPlayer:Dot(projDir)
+                                    closestApproachDist = (projToPlayer - projProjection).Magnitude
+                                    timeToImpact = projProjection.Magnitude / projSpeed
+                                    if closestApproachDist <= 14 and timeToImpact >= 0 and timeToImpact <= 3.2 then
+                                        isHeadingToMe = true
+                                    end
+                                end
+                            elseif dist <= 22 then
+                                isHeadingToMe = true
+                                timeToImpact = dist / 20
+                                closestApproachDist = dist
+                            end
+                            
+                            if isHeadingToMe then
+                                local ThreatScore = math.clamp((3.2 - timeToImpact) * 50 + (14 - closestApproachDist) * 15, 15, 150)
+                                table.insert(projectiles, {
+                                    Pos = projPos,
+                                    Vel = projVel,
+                                    Speed = projSpeed,
+                                    Dist = dist,
+                                    TTI = timeToImpact,
+                                    ClosestDist = closestApproachDist,
+                                    Score = ThreatScore
+                                })
+                                totalThreat = totalThreat + ThreatScore
+                                if timeToImpact < highestThreatTimeToImpact then
+                                    highestThreatTimeToImpact = timeToImpact
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        
+        self.DodgeAIState.CurrentThreatScore = totalThreat
+        
+        -- 2. TACTICAL CONTINUOUS POSITION SHIFTING (Di chuyển đảo vị trí liên tục để địch KHÔNG Thể Nhắm Tới)
+        -- Ngay cả khi chưa có đạn, vẫn đảo vị trí 3D bất ngờ xung quanh mục tiêu để gây nhiễu tầm nhắm!
+        local targetPos = Engine.State.CurrentTarget and Engine.State.CurrentTarget.Position or myPos
+        local targetDir = (targetPos - myPos).Magnitude > 0.5 and (targetPos - myPos).Unit or Vector3.new(1, 0, 0)
+        local perpDir = targetDir:Cross(Vector3.new(0, 1, 0)).Unit
+        
+        -- Nhịp di chuyển lượn sóng 3D & Dịch chuyển bất ngờ ngẫu nhiên
+        local circleOffset = (perpDir * math.sin(now * 7) * 20) + (targetDir * math.cos(now * 5.5) * 16)
+        local verticalWave = Vector3.new(0, math.sin(now * 8) * 9, 0)
+        
+        -- Dịch chuyển giật bước ngẫu nhiên (Sudden Blink Shift) mỗi 0.4 giây
+        local randomBlink = Vector3.zero
+        if math.floor(now * 2.5) % 2 == 0 then
+            randomBlink = Vector3.new(
+                math.sin(now * 19) * 22,
+                math.cos(now * 13) * 12,
+                math.cos(now * 23) * 22
+            )
+        end
+        
+        local continuousShiftVector = circleOffset + verticalWave + randomBlink
+        
+        -- 3. EMERGENCY INSTANT IMPULSE DODGE (Né Khẩn Cấp Khi Có Đạn Bay Tới)
+        if #projectiles > 0 and totalThreat >= 10 then
+            local primaryProj = projectiles[1]
+            local projDir = primaryProj.Vel.Magnitude > 1 and primaryProj.Vel.Unit or (myPos - primaryProj.Pos).Unit
+            local sideSign = (math.sin(now * 15) >= 0) and 1 or -1
+            local perpEvade = projDir:Cross(Vector3.new(0, 1, 0)).Unit * sideSign
+            
+            local evadeMagnitude = math.clamp((2.5 - primaryProj.TTI) * 50, 28, 65)
+            local verticalEvade = Vector3.new(0, (highestThreatTimeToImpact < 0.8) and 18 or 8, 0)
+            
+            local impulseVector = (perpEvade * evadeMagnitude) + verticalEvade
+            
+            -- Kiểm tra va chạm địa hình không để đâm vào tường
+            local testPos = myPos + impulseVector
+            if not CheckLineOfSight(myPos, testPos) then
+                impulseVector = (-perpEvade * evadeMagnitude) + verticalEvade
+            end
+            
+            self.DodgeAIState.ActiveVector = impulseVector
+            self.DodgeAIState.LastDodgeDir = perpEvade
+            self.DodgeAIState.LastDirectionTime = now
+            
+            if highestThreatTimeToImpact < 1.0 and (now - self.LastActions.Dodge > 1.8) then
+                self.LastActions.Dodge = now
+                if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
+                    Engine.Modules.NotificationManager:Notify("OOF SMART EVADE", string.format("⚡ [AI EVADE VIP] Đảo vị trí & Né đạn %.1fm (TTI: %.2fs)!", evadeMagnitude, primaryProj.TTI), 1.2)
+                end
+            end
+            
+            return self.DodgeAIState.ActiveVector
+        end
+        
+        -- Khi không có đạn ➔ Trả về véc-tơ đảo vị trí liên tục (Thoát tầm nhắm đối thủ)
+        self.DodgeAIState.ActiveVector = continuousShiftVector
+        return self.DodgeAIState.ActiveVector
+    end,
     
     Start = function(self)
         self:Stop()
@@ -1447,6 +1637,11 @@ Engine.Modules.FarmManager = {
         farmBV.Parent = hrp
         table.insert(Engine.State.FarmConnections, function() if farmBV then farmBV:Destroy() end end)
         
+        -- Tắt va chạm 1 lần duy nhất khi bật farm
+        for _, part in ipairs(char:GetChildren()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+
         local scanThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
                 Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
@@ -1465,6 +1660,23 @@ Engine.Modules.FarmManager = {
             end
         end)
         table.insert(Engine.State.FarmConnections, scanThread)
+
+        -- Quét né đạn chạy ngầm 0.15s / lần (KHÔNG chạy trên Heartbeat)
+        local dodgeThread = task.spawn(function()
+            while Engine.Modules.ConfigManager.Settings.AutoFarm do
+                if Engine.Modules.ConfigManager.Settings.AutoDodge then
+                    local c = LocalPlayer.Character
+                    local root = c and c:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        self.CachedDodgeVector = self:ScanIncomingProjectiles(root.Position)
+                    end
+                else
+                    self.CachedDodgeVector = Vector3.zero
+                end
+                task.wait(0.15)
+            end
+        end)
+        table.insert(Engine.State.FarmConnections, dodgeThread)
         
         local actionThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
@@ -1511,10 +1723,6 @@ Engine.Modules.FarmManager = {
             hrp.AssemblyLinearVelocity = Vector3.zero
             hrp.AssemblyAngularVelocity = Vector3.zero
             
-            for _, part in ipairs(char:GetChildren()) do
-                if part:IsA("BasePart") then part.CanCollide = false end
-            end
-            
             -- HỆ THỐNG ANTI-STUCK & RECOVERY HOÀN CHỈNH (Multi-Stage Recovery)
             if Engine.Modules.ConfigManager.Settings.AntiStuck then
                 local movedDist = (hrp.Position - self.StuckTracker.LastPos).Magnitude
@@ -1558,14 +1766,20 @@ Engine.Modules.FarmManager = {
                 local targetPos = Engine.State.CurrentTarget.Position
                 local destination
                 
+                -- Smart Dodge AI Output Integration (Chỉ áp dụng khi bật AutoDodge & Role OOF)
+                local dodgeVec = Vector3.zero
+                if Engine.Modules.ConfigManager.Settings.AutoDodge and Engine.State.CurrentRole == "OOF" then
+                    dodgeVec = self.CachedDodgeVector or Vector3.zero
+                end
+                
                 if Engine.State.CurrentRole == "ZOOKEEPER" then
                     local targetCFrame = Engine.State.CurrentTarget.CFrame
-                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector
+                    local defaultPos = targetCFrame.Position + (targetCFrame.LookVector * 12) + Vector3.new(0, 3, 0) + self.StuckTracker.OffsetVector + dodgeVec
                     
                     if Engine.Modules.ConfigManager.Settings.SmartWallBypass then
                         local hasLOS = CheckLineOfSight(defaultPos, targetPos, Engine.State.TargetModel)
                         if not hasLOS then
-                            destination = targetPos + Vector3.new(0, 14, 0) + self.StuckTracker.OffsetVector
+                            destination = targetPos + Vector3.new(0, 14, 0) + self.StuckTracker.OffsetVector + dodgeVec
                         else
                             destination = defaultPos
                         end
@@ -1573,7 +1787,7 @@ Engine.Modules.FarmManager = {
                         destination = defaultPos
                     end
                 else
-                    destination = Vector3.new(targetPos.X, targetPos.Y + Engine.Modules.ConfigManager.Settings.AutoFarmHeight, targetPos.Z) + self.StuckTracker.OffsetVector
+                    destination = Vector3.new(targetPos.X, targetPos.Y + Engine.Modules.ConfigManager.Settings.AutoFarmHeight, targetPos.Z) + self.StuckTracker.OffsetVector + dodgeVec
                 end
                 
                 local currentPos = hrp.Position
@@ -1759,7 +1973,8 @@ Engine.Modules.ESPManager = {
             if filter == "Animals Only" and not isAnimal then return end
             if filter == "Target Only" and Engine.State.CurrentTarget ~= hrp then return end
 
-            local key = model:GetDebugId()
+            local key = tostring(model)
+            pcall(function() key = model:GetDebugId() end)
             activeKeys[key] = true
 
             local drawings = self.Cache[key]
@@ -2043,16 +2258,18 @@ Engine.Services.RunService.Stepped:Connect(function()
 end)
 
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.25) do
         if Engine.Modules.ConfigManager.Settings.HitboxSize > 2 then
             for _, plr in ipairs(Engine.Services.Players:GetPlayers()) do
                 if plr ~= LocalPlayer and plr.Character then
                     if DeterminePlayerRole(plr) ~= "NEUTRAL" then
                         local root = plr.Character:FindFirstChild("HumanoidRootPart")
                         if root then
-                            root.Size = Vector3.new(Engine.Modules.ConfigManager.Settings.HitboxSize, Engine.Modules.ConfigManager.Settings.HitboxSize, Engine.Modules.ConfigManager.Settings.HitboxSize)
-                            root.Transparency = 0.75
-                            root.CanCollide = false
+                            pcall(function()
+                                root.Size = Vector3.new(Engine.Modules.ConfigManager.Settings.HitboxSize, Engine.Modules.ConfigManager.Settings.HitboxSize, Engine.Modules.ConfigManager.Settings.HitboxSize)
+                                root.Transparency = 0.75
+                                root.CanCollide = false
+                            end)
                         end
                     end
                 end
@@ -2110,9 +2327,70 @@ end)
 Engine.Modules.UIController = {
     ChromaObjects = {},
     Toggles = {},
+    RegisteredLabels = {},
     MainFrame = nil,
     LogoButton = nil,
+    BtnTopLang = nil,
+    BtnSwitchLang = nil,
     
+    AddHoverAnim = function(self, btn, defaultColor, hoverColor)
+        local origSize = btn.Size
+        btn.MouseEnter:Connect(function()
+            Engine.Services.TweenService:Create(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                BackgroundColor3 = hoverColor or (defaultColor and defaultColor:Lerp(Color3.fromRGB(255, 255, 255), 0.15) or Color3.fromRGB(40, 55, 80)),
+                BackgroundTransparency = math.max(0, btn.BackgroundTransparency - 0.1)
+            }):Play()
+        end)
+        btn.MouseLeave:Connect(function()
+            Engine.Services.TweenService:Create(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                BackgroundColor3 = defaultColor or btn.BackgroundColor3,
+                BackgroundTransparency = btn.BackgroundTransparency
+            }):Play()
+        end)
+        btn.MouseButton1Down:Connect(function()
+            Engine.Services.TweenService:Create(btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(origSize.X.Scale, origSize.X.Offset - 2, origSize.Y.Scale, origSize.Y.Offset - 2)
+            }):Play()
+        end)
+        btn.MouseButton1Up:Connect(function()
+            Engine.Services.TweenService:Create(btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = origSize
+            }):Play()
+        end)
+    end,
+
+    RegisterLabel = function(self, obj, key, prefix, suffix, isSlider, configKey)
+        table.insert(self.RegisteredLabels, {
+            Obj = obj,
+            Key = key,
+            Prefix = prefix or "",
+            Suffix = suffix or "",
+            IsSlider = isSlider or false,
+            ConfigKey = configKey
+        })
+    end,
+
+    RefreshLanguage = function(self)
+        for _, item in ipairs(self.RegisteredLabels) do
+            if item.Obj and item.Obj.Parent then
+                local txt = Engine.Modules.I18n:Get(item.Key)
+                if item.IsSlider and item.ConfigKey then
+                    local val = Engine.Modules.ConfigManager.Settings[item.ConfigKey] or 0
+                    item.Obj.Text = item.Prefix .. txt .. ": " .. string.format("%.2f", val) .. item.Suffix
+                else
+                    item.Obj.Text = item.Prefix .. txt .. item.Suffix
+                end
+            end
+        end
+        if self.BtnTopLang then
+            self.BtnTopLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
+        end
+        if self.BtnSwitchLang then
+            local curr = Engine.Modules.ConfigManager.Settings.Language or "VN"
+            self.BtnSwitchLang.Text = (curr == "VN") and "🌐 Switch Language / Chuyển Ngôn Ngữ (VN ➔ EN)" or "🌐 Switch Language / Chuyển Ngôn Ngữ (EN ➔ VN)"
+        end
+    end,
+
     Init = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
@@ -2120,11 +2398,12 @@ Engine.Modules.UIController = {
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         
+        -- Floating Cyber Orb Logo Button
         self.LogoButton = Instance.new("TextButton")
-        self.LogoButton.Size = UDim2.new(0, 58, 0, 58)
-        self.LogoButton.Position = UDim2.new(0, 20, 0.5, -29)
-        self.LogoButton.BackgroundColor3 = Color3.fromRGB(15, 20, 32)
-        self.LogoButton.BackgroundTransparency = 0.1
+        self.LogoButton.Size = UDim2.new(0, 64, 0, 64)
+        self.LogoButton.Position = UDim2.new(0, 24, 0.5, -32)
+        self.LogoButton.BackgroundColor3 = Color3.fromRGB(8, 12, 20)
+        self.LogoButton.BackgroundTransparency = 0.15
         self.LogoButton.Text = ""
         self.LogoButton.Active = true
         self.LogoButton.Draggable = true
@@ -2132,8 +2411,8 @@ Engine.Modules.UIController = {
         Instance.new("UICorner", self.LogoButton).CornerRadius = UDim.new(1, 0)
 
         local logoGlowRing = Instance.new("Frame")
-        logoGlowRing.Size = UDim2.new(1, 10, 1, 10)
-        logoGlowRing.Position = UDim2.new(0, -5, 0, -5)
+        logoGlowRing.Size = UDim2.new(1, 12, 1, 12)
+        logoGlowRing.Position = UDim2.new(0, -6, 0, -6)
         logoGlowRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
         logoGlowRing.BackgroundTransparency = 0.85
         logoGlowRing.Parent = self.LogoButton
@@ -2142,7 +2421,8 @@ Engine.Modules.UIController = {
         
         local logoAsset = Engine:GetLogoAsset()
         local logoImg = Instance.new("ImageLabel")
-        logoImg.Size = UDim2.new(1, 0, 1, 0)
+        logoImg.Size = UDim2.new(1, -6, 1, -6)
+        logoImg.Position = UDim2.new(0, 3, 0, 3)
         logoImg.BackgroundTransparency = 1
         if logoAsset then logoImg.Image = logoAsset end
         logoImg.ScaleType = Enum.ScaleType.Crop
@@ -2155,8 +2435,20 @@ Engine.Modules.UIController = {
         logoStroke.Parent = self.LogoButton
         table.insert(self.ChromaObjects, logoStroke)
         table.insert(self.ChromaObjects, self.LogoButton)
+
+        -- Online Status Badge Dot on Logo
+        local onlineDot = Instance.new("Frame")
+        onlineDot.Size = UDim2.new(0, 12, 0, 12)
+        onlineDot.Position = UDim2.new(1, -12, 1, -12)
+        onlineDot.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+        onlineDot.Parent = self.LogoButton
+        Instance.new("UICorner", onlineDot).CornerRadius = UDim.new(1, 0)
+
+        local onlineDotStroke = Instance.new("UIStroke")
+        onlineDotStroke.Thickness = 1.5
+        onlineDotStroke.Color = Color3.fromRGB(8, 12, 20)
+        onlineDotStroke.Parent = onlineDot
         
-        -- Tự động retry cập nhật logo bun.jpg khi tải xong từ Server
         task.spawn(function()
             task.wait(0.5)
             local retryAsset = Engine:GetLogoAsset()
@@ -2165,20 +2457,23 @@ Engine.Modules.UIController = {
             end
         end)
         
+        self:AddHoverAnim(self.LogoButton, Color3.fromRGB(8, 12, 20), Color3.fromRGB(16, 24, 40))
+        
         self.LogoButton.MouseButton1Click:Connect(function()
             self.MainFrame.Visible = not self.MainFrame.Visible
         end)
         
+        -- Main Cyberpunk Liquid Glass Frame
         self.MainFrame = Instance.new("Frame")
-        self.MainFrame.Size = UDim2.new(0, 560, 0, 390)
-        self.MainFrame.Position = UDim2.new(0.5, -280, 0.5, -195)
-        self.MainFrame.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
-        self.MainFrame.BackgroundTransparency = 0.32
+        self.MainFrame.Size = UDim2.new(0, 580, 0, 400)
+        self.MainFrame.Position = UDim2.new(0.5, -290, 0.5, -200)
+        self.MainFrame.BackgroundColor3 = Color3.fromRGB(8, 12, 20)
+        self.MainFrame.BackgroundTransparency = 0.16
         self.MainFrame.Active = true
         self.MainFrame.Draggable = true
         self.MainFrame.ClipsDescendants = true
         self.MainFrame.Parent = sg
-        Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 16)
+        Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 20)
         
         local mainStroke = Instance.new("UIStroke")
         mainStroke.Thickness = 1.8
@@ -2187,22 +2482,23 @@ Engine.Modules.UIController = {
         table.insert(self.ChromaObjects, mainStroke)
         
         local topBar = Instance.new("Frame")
-        topBar.Size = UDim2.new(1, 0, 0, 54)
+        topBar.Size = UDim2.new(1, 0, 0, 58)
         topBar.BackgroundTransparency = 1
         topBar.Parent = self.MainFrame
 
         local headerLogoAsset = Engine:GetLogoAsset()
-        local titleLeftPos = 60
+        local titleLeftPos = 68
 
         local headerLogoFrame = Instance.new("Frame")
-        headerLogoFrame.Size = UDim2.new(0, 36, 0, 36)
-        headerLogoFrame.Position = UDim2.new(0, 15, 0, 9)
-        headerLogoFrame.BackgroundColor3 = Color3.fromRGB(20, 28, 45)
+        headerLogoFrame.Size = UDim2.new(0, 42, 0, 42)
+        headerLogoFrame.Position = UDim2.new(0, 14, 0, 8)
+        headerLogoFrame.BackgroundColor3 = Color3.fromRGB(16, 22, 36)
         headerLogoFrame.Parent = topBar
-        Instance.new("UICorner", headerLogoFrame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", headerLogoFrame).CornerRadius = UDim.new(0, 12)
 
         local headerLogoImg = Instance.new("ImageLabel")
-        headerLogoImg.Size = UDim2.new(1, 0, 1, 0)
+        headerLogoImg.Size = UDim2.new(1, -4, 1, -4)
+        headerLogoImg.Position = UDim2.new(0, 2, 0, 2)
         headerLogoImg.BackgroundTransparency = 1
         if headerLogoAsset then headerLogoImg.Image = headerLogoAsset end
         headerLogoImg.ScaleType = Enum.ScaleType.Crop
@@ -2210,7 +2506,7 @@ Engine.Modules.UIController = {
         Instance.new("UICorner", headerLogoImg).CornerRadius = UDim.new(0, 10)
 
         local headerLogoStroke = Instance.new("UIStroke")
-        headerLogoStroke.Thickness = 1.5
+        headerLogoStroke.Thickness = 1.8
         headerLogoStroke.Color = Color3.fromRGB(0, 240, 255)
         headerLogoStroke.Parent = headerLogoFrame
         table.insert(self.ChromaObjects, headerLogoStroke)
@@ -2225,40 +2521,41 @@ Engine.Modules.UIController = {
 
         local title = Instance.new("TextLabel")
         title.Size = UDim2.new(1, -(titleLeftPos + 275), 0, 26)
-        title.Position = UDim2.new(0, titleLeftPos, 0, 6)
+        title.Position = UDim2.new(0, titleLeftPos, 0, 8)
         title.BackgroundTransparency = 1
-        title.Text = "RB ZOO V8.5 • CLASS QUID VIP"
+        title.Text = "⚡ CLASS QUID VIP • V8.5"
         title.Font = Enum.Font.GothamBlack
-        title.TextSize = 13
+        title.TextSize = 14
         title.TextXAlignment = Enum.TextXAlignment.Left
         title.Parent = topBar
         table.insert(self.ChromaObjects, title)
 
         local authorLabel = Instance.new("TextLabel")
         authorLabel.Size = UDim2.new(1, -(titleLeftPos + 275), 0, 16)
-        authorLabel.Position = UDim2.new(0, titleLeftPos, 0, 28)
+        authorLabel.Position = UDim2.new(0, titleLeftPos, 0, 32)
         authorLabel.BackgroundTransparency = 1
-        authorLabel.Text = "Owner: " .. Engine.Author .. "  |  Class Quid Premium Engine"
+        authorLabel.Text = "👑 Owner: " .. Engine.Author .. "  |  VIP ENGINE 2026"
         authorLabel.Font = Enum.Font.GothamBold
-        authorLabel.TextSize = 9
+        authorLabel.TextSize = 9.5
         authorLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
         authorLabel.TextXAlignment = Enum.TextXAlignment.Left
         authorLabel.Parent = topBar
 
-        local btnTopLang = Instance.new("TextButton")
-        btnTopLang.Size = UDim2.new(0, 72, 0, 28)
-        btnTopLang.Position = UDim2.new(1, -262, 0, 13)
-        btnTopLang.BackgroundColor3 = Color3.fromRGB(25, 36, 56)
-        btnTopLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
-        btnTopLang.Font = Enum.Font.GothamBold
-        btnTopLang.TextSize = 11
-        btnTopLang.TextColor3 = Color3.fromRGB(0, 255, 180)
-        btnTopLang.Parent = topBar
-        Instance.new("UICorner", btnTopLang).CornerRadius = UDim.new(0, 8)
+        self.BtnTopLang = Instance.new("TextButton")
+        self.BtnTopLang.Size = UDim2.new(0, 72, 0, 28)
+        self.BtnTopLang.Position = UDim2.new(1, -262, 0, 15)
+        self.BtnTopLang.BackgroundColor3 = Color3.fromRGB(18, 26, 42)
+        self.BtnTopLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
+        self.BtnTopLang.Font = Enum.Font.GothamBold
+        self.BtnTopLang.TextSize = 11
+        self.BtnTopLang.TextColor3 = Color3.fromRGB(0, 255, 180)
+        self.BtnTopLang.Parent = topBar
+        Instance.new("UICorner", self.BtnTopLang).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(self.BtnTopLang, Color3.fromRGB(18, 26, 42), Color3.fromRGB(28, 40, 64))
         
-        btnTopLang.MouseButton1Click:Connect(function()
+        self.BtnTopLang.MouseButton1Click:Connect(function()
             local newLang = Engine.Modules.I18n:ToggleLang()
-            btnTopLang.Text = "🌐 " .. newLang
+            self:RefreshLanguage()
             if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
                 Engine.Modules.NotificationManager:Notify("Language / Ngôn Ngữ", (newLang == "VN") and "✓ Đã chuyển sang Tiếng Việt!" or "✓ Switched language to English!", 3)
             end
@@ -2266,7 +2563,7 @@ Engine.Modules.UIController = {
 
         local btnTopDiscord = Instance.new("TextButton")
         btnTopDiscord.Size = UDim2.new(0, 85, 0, 28)
-        btnTopDiscord.Position = UDim2.new(1, -185, 0, 13)
+        btnTopDiscord.Position = UDim2.new(1, -185, 0, 15)
         btnTopDiscord.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
         btnTopDiscord.Text = "💬 Discord"
         btnTopDiscord.Font = Enum.Font.GothamBold
@@ -2274,20 +2571,22 @@ Engine.Modules.UIController = {
         btnTopDiscord.TextColor3 = Color3.fromRGB(255, 255, 255)
         btnTopDiscord.Parent = topBar
         Instance.new("UICorner", btnTopDiscord).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(btnTopDiscord, Color3.fromRGB(88, 101, 242), Color3.fromRGB(105, 118, 255))
         btnTopDiscord.MouseButton1Click:Connect(function()
             Engine.Modules.KeySystem:JoinDiscord()
         end)
 
         local btnTopGetKey = Instance.new("TextButton")
         btnTopGetKey.Size = UDim2.new(0, 85, 0, 28)
-        btnTopGetKey.Position = UDim2.new(1, -95, 0, 13)
-        btnTopGetKey.BackgroundColor3 = Color3.fromRGB(30, 45, 70)
+        btnTopGetKey.Position = UDim2.new(1, -95, 0, 15)
+        btnTopGetKey.BackgroundColor3 = Color3.fromRGB(22, 35, 56)
         btnTopGetKey.Text = "🌐 Get Key"
         btnTopGetKey.Font = Enum.Font.GothamBold
         btnTopGetKey.TextSize = 11
         btnTopGetKey.TextColor3 = Color3.fromRGB(0, 240, 255)
         btnTopGetKey.Parent = topBar
         Instance.new("UICorner", btnTopGetKey).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(btnTopGetKey, Color3.fromRGB(22, 35, 56), Color3.fromRGB(34, 52, 82))
         btnTopGetKey.MouseButton1Click:Connect(function()
             if setclipboard or toclipboard then
                 pcall(function() (setclipboard or toclipboard)(Engine.Modules.KeySystem.KeyURL) end)
@@ -2306,8 +2605,8 @@ Engine.Modules.UIController = {
         table.insert(self.ChromaObjects, line)
         
         local contentArea = Instance.new("Frame")
-        contentArea.Size = UDim2.new(1, 0, 1, -50)
-        contentArea.Position = UDim2.new(0, 0, 0, 50)
+        contentArea.Size = UDim2.new(1, 0, 1, -58)
+        contentArea.Position = UDim2.new(0, 0, 0, 58)
         contentArea.BackgroundTransparency = 1
         contentArea.Parent = self.MainFrame
         
@@ -2315,13 +2614,15 @@ Engine.Modules.UIController = {
         
         task.spawn(function()
             while task.wait(0.08) do
-                local hue = (tick() % 6) / 6
-                local color = Color3.fromHSV(hue, 0.75, 1)
-                for _, obj in ipairs(self.ChromaObjects) do
-                    if obj and obj.Parent then
-                        if obj:IsA("UIStroke") then obj.Color = color
-                        elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then obj.TextColor3 = color
-                        elseif obj:IsA("Frame") and (obj.Size.Y.Offset == 1 or obj.Name == "ToggledBG") then obj.BackgroundColor3 = color end
+                if self.MainFrame and self.MainFrame.Visible then
+                    local hue = (tick() % 6) / 6
+                    local color = Color3.fromHSV(hue, 0.75, 1)
+                    for _, obj in ipairs(self.ChromaObjects) do
+                        if obj and obj.Parent then
+                            if obj:IsA("UIStroke") then obj.Color = color
+                            elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then obj.TextColor3 = color
+                            elseif obj:IsA("Frame") and (obj.Size.Y.Offset == 1 or obj.Name == "ToggledBG") then obj.BackgroundColor3 = color end
+                        end
                     end
                 end
             end
@@ -2372,39 +2673,86 @@ Engine.Modules.UIController = {
         end)
     end,
     
+    CreateSectionHeader = function(self, parent, translationKey)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, -10, 0, 30)
+        frame.BackgroundColor3 = Color3.fromRGB(16, 24, 40)
+        frame.BackgroundTransparency = 0.35
+        frame.Parent = parent
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+        local lineLeft = Instance.new("Frame")
+        lineLeft.Size = UDim2.new(0, 4, 1, -8)
+        lineLeft.Position = UDim2.new(0, 4, 0, 4)
+        lineLeft.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
+        lineLeft.Parent = frame
+        Instance.new("UICorner", lineLeft).CornerRadius = UDim.new(1, 0)
+        table.insert(self.ChromaObjects, lineLeft)
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -20, 1, 0)
+        label.Position = UDim2.new(0, 14, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = Engine.Modules.I18n:Get(translationKey)
+        label.TextColor3 = Color3.fromRGB(0, 240, 255)
+        label.Font = Enum.Font.GothamBlack
+        label.TextSize = 11
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+        
+        self:RegisterLabel(label, translationKey)
+        table.insert(self.ChromaObjects, label)
+    end,
+
     BuildTabs = function(self, parent)
         local tabContainer = Instance.new("Frame")
-        tabContainer.Size = UDim2.new(0, 145, 1, -20)
+        tabContainer.Size = UDim2.new(0, 150, 1, -20)
         tabContainer.Position = UDim2.new(0, 12, 0, 10)
-        tabContainer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        tabContainer.BackgroundTransparency = 0.94
+        tabContainer.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
+        tabContainer.BackgroundTransparency = 0.35
         tabContainer.Parent = parent
-        Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 12)
-        
+        Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 14)
+
+        local tabStroke = Instance.new("UIStroke")
+        tabStroke.Thickness = 1.2
+        tabStroke.Color = Color3.fromRGB(0, 240, 255)
+        tabStroke.Transparency = 0.8
+        tabStroke.Parent = tabContainer
+
         local tabList = Instance.new("UIListLayout")
         tabList.SortOrder = Enum.SortOrder.LayoutOrder
         tabList.Padding = UDim.new(0, 6)
         tabList.Parent = tabContainer
+
+        local pad = Instance.new("UIPadding")
+        pad.PaddingTop = UDim.new(0, 8)
+        pad.PaddingLeft = UDim.new(0, 6)
+        pad.PaddingRight = UDim.new(0, 6)
+        pad.Parent = tabContainer
         
         local pageContainer = Instance.new("Frame")
-        pageContainer.Size = UDim2.new(1, -175, 1, -20)
-        pageContainer.Position = UDim2.new(0, 165, 0, 10)
+        pageContainer.Size = UDim2.new(1, -180, 1, -20)
+        pageContainer.Position = UDim2.new(0, 170, 0, 10)
         pageContainer.BackgroundTransparency = 1
         pageContainer.Parent = parent
         
         local pages = {}
         local tabButtons = {}
         
-        local function createTab(name, first)
+        local function createTab(translationKey, first)
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, 0, 0, 36)
-            btn.BackgroundTransparency = 1
-            btn.Text = "    " .. name
-            btn.TextColor3 = Color3.fromRGB(180, 195, 215)
-            btn.Font = Enum.Font.GothamBold
-            btn.TextSize = 12
+            btn.BackgroundColor3 = first and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(15, 21, 34)
+            btn.BackgroundTransparency = first and 0.85 or 1
+            btn.Text = "  " .. Engine.Modules.I18n:Get(translationKey)
+            btn.TextColor3 = first and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(160, 175, 200)
+            btn.Font = Enum.Font.GothamBlack
+            btn.TextSize = 11.5
             btn.TextXAlignment = Enum.TextXAlignment.Left
             btn.Parent = tabContainer
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+
+            self:RegisterLabel(btn, translationKey, "  ")
             
             local page = Instance.new("ScrollingFrame")
             page.Size = UDim2.new(1, 0, 1, 0)
@@ -2419,15 +2767,26 @@ Engine.Modules.UIController = {
             pageLayout.Parent = page
             
             if first then
-                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                 table.insert(self.ChromaObjects, btn)
             end
             
             btn.MouseButton1Click:Connect(function()
-                for _, p in pairs(pages) do p.Visible = false end
-                for _, b in pairs(tabButtons) do b.TextColor3 = Color3.fromRGB(180, 195, 215) end
+                for _, p in pairs(pages) do 
+                    if p.Visible then p.Visible = false end 
+                end
+                for _, b in pairs(tabButtons) do 
+                    Engine.Services.TweenService:Create(b, TweenInfo.new(0.2), {
+                        TextColor3 = Color3.fromRGB(160, 175, 200),
+                        BackgroundTransparency = 1
+                    }):Play() 
+                end
                 page.Visible = true
-                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                page.CanvasPosition = Vector2.new(0, 0)
+                Engine.Services.TweenService:Create(btn, TweenInfo.new(0.2), {
+                    TextColor3 = Color3.fromRGB(0, 240, 255),
+                    BackgroundColor3 = Color3.fromRGB(0, 220, 255),
+                    BackgroundTransparency = 0.85
+                }):Play()
                 table.insert(self.ChromaObjects, btn)
             end)
             
@@ -2436,118 +2795,138 @@ Engine.Modules.UIController = {
             return page
         end
         
-        local pageForce = createTab("🎯 Team Force", true)
-        local pageCombat = createTab("⚡ Combat AI", false)
-        local pageFarm = createTab("🤖 Automation", false)
-        local pageMovement = createTab("🚀 Movement", false)
-        local pageESP = createTab("👁️ ESP Visuals", false)
-        local pageKey = createTab("🔑 Key System", false)
-        local pageLang = createTab("🌐 Language", false)
+        local pageForce = createTab("TabTeamForce", true)
+        local pageCombat = createTab("TabCombat", false)
+        local pageFarm = createTab("TabFarm", false)
+        local pageMovement = createTab("TabMovement", false)
+        local pageESP = createTab("TabESP", false)
+        local pageKey = createTab("TabKey", false)
+        local pageLang = createTab("TabLanguage", false)
         
-        self:CreateToggle(pageForce, "Ép phe Zookeeper 100%", "ForceZookeeper", function(v)
+        self:CreateSectionHeader(pageForce, "SecTeam")
+        self:CreateToggle(pageForce, "ForceZoo", "ForceZookeeper", function(v)
             if v then Engine.Modules.TeamForce:TryForceZoo() end
         end)
-        self:CreateToggle(pageForce, "Hiển thị HUD Hunter", "ShowHUD")
-        self:CreateToggle(pageForce, "Tối ưu FPS (Fix Lag)", "FPSBooster", function(v)
+        self:CreateToggle(pageForce, "ShowHUD", "ShowHUD")
+        self:CreateToggle(pageForce, "FPSBooster", "FPSBooster", function(v)
             if v then Engine.Modules.PerformanceBooster:Init() end
         end)
         
-        self:CreateToggle(pageCombat, "Smart Aimbot [M]", "Aimbot")
-        self:CreateSlider(pageCombat, "Aimbot FOV", 50, 600, "AimbotFOV")
-        self:CreateSlider(pageCombat, "Aimbot Smooth", 0.05, 1, "AimbotSmooth")
-        self:CreateToggle(pageCombat, "Auto Attack", "AutoAttack")
-        self:CreateToggle(pageCombat, "Auto Skill (Q / E)", "AutoSkill")
-        self:CreateSlider(pageCombat, "Expand Hitbox", 2, 25, "HitboxSize")
+        self:CreateSectionHeader(pageCombat, "SecCombat")
+        self:CreateToggle(pageCombat, "SmartAimbot", "Aimbot")
+        self:CreateSlider(pageCombat, "AimbotFOV", 50, 600, "AimbotFOV")
+        self:CreateSlider(pageCombat, "AimbotSmooth", 0.05, 1, "AimbotSmooth")
+        self:CreateToggle(pageCombat, "AutoAttack", "AutoAttack")
+        self:CreateToggle(pageCombat, "AutoSkill", "AutoSkill")
+        self:CreateSlider(pageCombat, "HitboxSize", 2, 25, "HitboxSize")
         
-        self:CreateToggle(pageFarm, "Hunter AI Auto Farm [P]", "AutoFarm", function(v)
+        self:CreateSectionHeader(pageFarm, "SecFarm")
+        self:CreateToggle(pageFarm, "AutoFarm", "AutoFarm", function(v)
             if v then Engine.Modules.FarmManager:Start() else Engine.Modules.FarmManager:Stop() end
         end)
-        self:CreateToggle(pageFarm, "Fix Dính Tường (Smart Bypass)", "SmartWallBypass")
-        self:CreateSlider(pageFarm, "Hunter Speed", 30, 250, "AutoFarmSpeed")
-        self:CreateSlider(pageFarm, "Flight Height (OOF)", 50, 1500, "AutoFarmHeight")
-        self:CreateToggle(pageFarm, "Anti-Stuck Protection", "AntiStuck")
-        self:CreateToggle(pageFarm, "Auto Money", "AutoMoney")
-        self:CreateToggle(pageFarm, "Anti-AFK (24/7)", "AntiAFK")
+        self:CreateToggle(pageFarm, "AutoDodge", "AutoDodge")
+        self:CreateSlider(pageFarm, "DodgeRadius", 5, 50, "DodgeRadius")
+        self:CreateToggle(pageFarm, "SmartWallBypass", "SmartWallBypass")
+        self:CreateSlider(pageFarm, "AutoFarmSpeed", 30, 250, "AutoFarmSpeed")
+        self:CreateSlider(pageFarm, "AutoFarmHeight", 50, 1500, "AutoFarmHeight")
+        self:CreateToggle(pageFarm, "AntiStuck", "AntiStuck")
+        self:CreateToggle(pageFarm, "AutoMoney", "AutoMoney")
+        self:CreateToggle(pageFarm, "AntiAFK", "AntiAFK")
         
+        self:CreateSectionHeader(pageMovement, "SecMovement")
         self:CreateToggle(pageMovement, "Fly", "Fly")
-        self:CreateSlider(pageMovement, "Fly Speed", 50, 350, "FlySpeed")
+        self:CreateSlider(pageMovement, "FlySpeed", 50, 350, "FlySpeed")
         self:CreateToggle(pageMovement, "WalkSpeed", "Speed")
-        self:CreateSlider(pageMovement, "Speed Value", 16, 100, "SpeedValue")
+        self:CreateSlider(pageMovement, "SpeedValue", 16, 100, "SpeedValue")
         self:CreateToggle(pageMovement, "Noclip", "Noclip")
-        self:CreateToggle(pageMovement, "Infinite Jump", "InfJump")
+        self:CreateToggle(pageMovement, "InfJump", "InfJump")
         
-        self:CreateToggle(pageESP, "Kích hoạt ESP Engine", "ESP_Enabled")
-        self:CreateToggle(pageESP, "ESP Khung 2D (Box)", "ESP_Box2D")
-        self:CreateToggle(pageESP, "ESP Tên & Role", "ESP_Name")
-        self:CreateToggle(pageESP, "ESP Khoảng cách", "ESP_Distance")
-        self:CreateToggle(pageESP, "ESP Thanh Máu (HP Bar)", "ESP_HealthBar")
-        self:CreateToggle(pageESP, "ESP Đường dẫn (Tracer)", "ESP_Tracer")
-        self:CreateToggle(pageESP, "Mũi tên chỉ hướng (Off-screen)", "ESP_OffscreenArrow")
-        self:CreateToggle(pageESP, "Vòng sáng Khóa Target", "ESP_TargetHighlight")
-        self:CreateSlider(pageESP, "Khoảng cách ESP tối đa", 100, 3000, "ESP_MaxDistance")
+        self:CreateSectionHeader(pageESP, "SecESP")
+        self:CreateToggle(pageESP, "ESP_Enabled", "ESP_Enabled")
+        self:CreateToggle(pageESP, "ESP_Box2D", "ESP_Box2D")
+        self:CreateToggle(pageESP, "ESP_Name", "ESP_Name")
+        self:CreateToggle(pageESP, "ESP_Distance", "ESP_Distance")
+        self:CreateToggle(pageESP, "ESP_HealthBar", "ESP_HealthBar")
+        self:CreateToggle(pageESP, "ESP_Tracer", "ESP_Tracer")
+        self:CreateToggle(pageESP, "ESP_OffscreenArrow", "ESP_OffscreenArrow")
+        self:CreateToggle(pageESP, "ESP_TargetHighlight", "ESP_TargetHighlight")
+        self:CreateSlider(pageESP, "ESP_MaxDistance", 100, 3000, "ESP_MaxDistance")
         
-        local btnSwitchLang = Instance.new("TextButton")
-        btnSwitchLang.Size = UDim2.new(1, -10, 0, 48)
-        btnSwitchLang.BackgroundColor3 = Color3.fromRGB(25, 36, 56)
-        btnSwitchLang.Text = "🌐 Switch Language / Chuyển Ngôn Ngữ (VN ➔ EN)"
-        btnSwitchLang.Font = Enum.Font.GothamBold
-        btnSwitchLang.TextSize = 11
-        btnSwitchLang.TextColor3 = Color3.fromRGB(0, 255, 180)
-        btnSwitchLang.Parent = pageLang
-        Instance.new("UICorner", btnSwitchLang).CornerRadius = UDim.new(0, 10)
+        self:CreateSectionHeader(pageLang, "SecLang")
+        self.BtnSwitchLang = Instance.new("TextButton")
+        self.BtnSwitchLang.Size = UDim2.new(1, -10, 0, 44)
+        self.BtnSwitchLang.BackgroundColor3 = Color3.fromRGB(22, 32, 52)
+        local currLang = Engine.Modules.ConfigManager.Settings.Language or "VN"
+        self.BtnSwitchLang.Text = (currLang == "VN") and "🌐 Switch Language / Chuyển Ngôn Ngữ (VN ➔ EN)" or "🌐 Switch Language / Chuyển Ngôn Ngữ (EN ➔ VN)"
+        self.BtnSwitchLang.Font = Enum.Font.GothamBold
+        self.BtnSwitchLang.TextSize = 11
+        self.BtnSwitchLang.TextColor3 = Color3.fromRGB(0, 255, 180)
+        self.BtnSwitchLang.Parent = pageLang
+        Instance.new("UICorner", self.BtnSwitchLang).CornerRadius = UDim.new(0, 10)
+        self:AddHoverAnim(self.BtnSwitchLang, Color3.fromRGB(22, 32, 52), Color3.fromRGB(34, 48, 76))
         
-        btnSwitchLang.MouseButton1Click:Connect(function()
+        self.BtnSwitchLang.MouseButton1Click:Connect(function()
             local newLang = Engine.Modules.I18n:ToggleLang()
-            btnSwitchLang.Text = (newLang == "VN") and "🌐 Switch Language / Chuyển Ngôn Ngữ (VN ➔ EN)" or "🌐 Switch Language / Chuyển Ngôn Ngữ (EN ➔ VN)"
+            self:RefreshLanguage()
             if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
                 Engine.Modules.NotificationManager:Notify("Language / Ngôn Ngữ", (newLang == "VN") and "✓ Đã chuyển sang Tiếng Việt!" or "✓ Switched language to English!", 3)
             end
         end)
 
+        self:CreateSectionHeader(pageKey, "SecKey")
         local keyCard = Instance.new("Frame")
         keyCard.Size = UDim2.new(1, -10, 0, 210)
-        keyCard.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        keyCard.BackgroundTransparency = 0.94
+        keyCard.BackgroundColor3 = Color3.fromRGB(16, 22, 35)
+        keyCard.BackgroundTransparency = 0.45
         keyCard.Parent = pageKey
         Instance.new("UICorner", keyCard).CornerRadius = UDim.new(0, 12)
+
+        local cardStroke = Instance.new("UIStroke")
+        cardStroke.Thickness = 1
+        cardStroke.Color = Color3.fromRGB(0, 240, 255)
+        cardStroke.Transparency = 0.85
+        cardStroke.Parent = keyCard
         
         local keyTitle = Instance.new("TextLabel")
         keyTitle.Size = UDim2.new(1, -20, 0, 24)
         keyTitle.Position = UDim2.new(0, 12, 0, 8)
         keyTitle.BackgroundTransparency = 1
-        keyTitle.Text = "🔑 THÔNG TIN KEY & CỘNG ĐỒNG"
+        keyTitle.Text = Engine.Modules.I18n:Get("KeyInfoTitle")
         keyTitle.Font = Enum.Font.GothamBlack
-        keyTitle.TextSize = 13
+        keyTitle.TextSize = 12.5
         keyTitle.TextColor3 = Color3.fromRGB(0, 240, 255)
         keyTitle.TextXAlignment = Enum.TextXAlignment.Left
         keyTitle.Parent = keyCard
+        self:RegisterLabel(keyTitle, "KeyInfoTitle")
         
         local keyValLabel = Instance.new("TextLabel")
-        keyValLabel.Size = UDim2.new(1, -20, 0, 20)
+        keyValLabel.Size = UDim2.new(1, -24, 0, 20)
         keyValLabel.Position = UDim2.new(0, 12, 0, 36)
         keyValLabel.BackgroundTransparency = 1
-        keyValLabel.Text = "Mã Key: " .. (Engine.Modules.KeySystem.CurrentKey or "N/A")
-        keyValLabel.Font = Enum.Font.GothamBold
+        keyValLabel.Text = Engine.Modules.I18n:Get("KeyVal") .. (Engine.Modules.KeySystem.SavedKey ~= "" and Engine.Modules.KeySystem.SavedKey or "N/A")
+        keyValLabel.Font = Enum.Font.GothamMedium
         keyValLabel.TextSize = 11
         keyValLabel.TextColor3 = Color3.fromRGB(220, 230, 245)
         keyValLabel.TextXAlignment = Enum.TextXAlignment.Left
         keyValLabel.Parent = keyCard
-        
+        self:RegisterLabel(keyValLabel, "KeyVal", "", (Engine.Modules.KeySystem.SavedKey ~= "" and Engine.Modules.KeySystem.SavedKey or "N/A"))
+
         local keyTimeLabel = Instance.new("TextLabel")
-        keyTimeLabel.Size = UDim2.new(1, -20, 0, 20)
-        keyTimeLabel.Position = UDim2.new(0, 12, 0, 60)
+        keyTimeLabel.Size = UDim2.new(1, -24, 0, 20)
+        keyTimeLabel.Position = UDim2.new(0, 12, 0, 58)
         keyTimeLabel.BackgroundTransparency = 1
-        keyTimeLabel.Text = "Thời gian còn lại: Đang tính..."
-        keyTimeLabel.Font = Enum.Font.GothamBold
+        keyTimeLabel.Text = Engine.Modules.I18n:Get("KeyRemaining") .. Engine.Modules.KeySystem:GetRemainingTime()
+        keyTimeLabel.Font = Enum.Font.GothamMedium
         keyTimeLabel.TextSize = 11
-        keyTimeLabel.TextColor3 = Color3.fromRGB(0, 255, 170)
+        keyTimeLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
         keyTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
         keyTimeLabel.Parent = keyCard
+        self:RegisterLabel(keyTimeLabel, "KeyRemaining")
         
         task.spawn(function()
             while task.wait(1) do
                 if pageKey and pageKey.Visible then
-                    keyTimeLabel.Text = "Thời gian còn lại: " .. Engine.Modules.KeySystem:GetRemainingTime()
+                    keyTimeLabel.Text = Engine.Modules.I18n:Get("KeyRemaining") .. Engine.Modules.KeySystem:GetRemainingTime()
                 end
             end
         end)
@@ -2555,13 +2934,15 @@ Engine.Modules.UIController = {
         local btnCardGetKey = Instance.new("TextButton")
         btnCardGetKey.Size = UDim2.new(1, -24, 0, 32)
         btnCardGetKey.Position = UDim2.new(0, 12, 0, 88)
-        btnCardGetKey.BackgroundColor3 = Color3.fromRGB(30, 42, 65)
-        btnCardGetKey.Text = "🌐 Trang Get Key 24h: getkeyfree24h.netlify.app"
+        btnCardGetKey.BackgroundColor3 = Color3.fromRGB(22, 35, 56)
+        btnCardGetKey.Text = Engine.Modules.I18n:Get("KeyWebBtn")
         btnCardGetKey.Font = Enum.Font.GothamBold
         btnCardGetKey.TextSize = 10
         btnCardGetKey.TextColor3 = Color3.fromRGB(0, 240, 255)
         btnCardGetKey.Parent = keyCard
         Instance.new("UICorner", btnCardGetKey).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(btnCardGetKey, Color3.fromRGB(22, 35, 56), Color3.fromRGB(34, 52, 82))
+        self:RegisterLabel(btnCardGetKey, "KeyWebBtn")
         btnCardGetKey.MouseButton1Click:Connect(function()
             if setclipboard or toclipboard then
                 pcall(function() (setclipboard or toclipboard)(Engine.Modules.KeySystem.KeyURL) end)
@@ -2575,12 +2956,14 @@ Engine.Modules.UIController = {
         btnCardDiscord.Size = UDim2.new(1, -24, 0, 32)
         btnCardDiscord.Position = UDim2.new(0, 12, 0, 126)
         btnCardDiscord.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
-        btnCardDiscord.Text = "💬 Tham Gia Server Discord: discord.gg/rMJAhJwgW"
+        btnCardDiscord.Text = Engine.Modules.I18n:Get("KeyDiscordBtn")
         btnCardDiscord.Font = Enum.Font.GothamBold
         btnCardDiscord.TextSize = 10
         btnCardDiscord.TextColor3 = Color3.fromRGB(255, 255, 255)
         btnCardDiscord.Parent = keyCard
         Instance.new("UICorner", btnCardDiscord).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(btnCardDiscord, Color3.fromRGB(88, 101, 242), Color3.fromRGB(105, 118, 255))
+        self:RegisterLabel(btnCardDiscord, "KeyDiscordBtn")
         btnCardDiscord.MouseButton1Click:Connect(function()
             Engine.Modules.KeySystem:JoinDiscord()
         end)
@@ -2588,13 +2971,15 @@ Engine.Modules.UIController = {
         local btnLogout = Instance.new("TextButton")
         btnLogout.Size = UDim2.new(1, -24, 0, 32)
         btnLogout.Position = UDim2.new(0, 12, 0, 164)
-        btnLogout.BackgroundColor3 = Color3.fromRGB(220, 50, 60)
-        btnLogout.Text = "🔓 ĐĂNG XUẤT KEY"
+        btnLogout.BackgroundColor3 = Color3.fromRGB(210, 45, 55)
+        btnLogout.Text = Engine.Modules.I18n:Get("BtnLogout")
         btnLogout.Font = Enum.Font.GothamBlack
         btnLogout.TextSize = 11
         btnLogout.TextColor3 = Color3.fromRGB(255, 255, 255)
         btnLogout.Parent = keyCard
         Instance.new("UICorner", btnLogout).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(btnLogout, Color3.fromRGB(210, 45, 55), Color3.fromRGB(235, 65, 75))
+        self:RegisterLabel(btnLogout, "BtnLogout")
         
         btnLogout.MouseButton1Click:Connect(function()
             Engine.Modules.KeySystem:Logout()
@@ -2603,54 +2988,84 @@ Engine.Modules.UIController = {
         for _, p in pairs(pages) do p.CanvasSize = UDim2.new(0, 0, 0, #p:GetChildren() * 52) end
     end,
     
-    CreateToggle = function(self, parent, text, configKey, callback)
+    CreateToggle = function(self, parent, translationKey, configKey, callback)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 40)
-        frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        frame.BackgroundTransparency = 0.94
+        frame.Size = UDim2.new(1, -10, 0, 44)
+        frame.BackgroundColor3 = Color3.fromRGB(15, 21, 34)
+        frame.BackgroundTransparency = 0.35
         frame.Parent = parent
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+        local frameStroke = Instance.new("UIStroke")
+        frameStroke.Thickness = 1
+        frameStroke.Color = Color3.fromRGB(0, 240, 255)
+        frameStroke.Transparency = 0.85
+        frameStroke.Parent = frame
         
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -65, 1, 0)
-        label.Position = UDim2.new(0, 12, 0, 0)
+        label.Size = UDim2.new(1, -72, 1, 0)
+        label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
-        label.Text = text
-        label.TextColor3 = Color3.fromRGB(225, 235, 248)
-        label.Font = Enum.Font.GothamMedium
+        label.Text = Engine.Modules.I18n:Get(translationKey)
+        label.TextColor3 = Color3.fromRGB(235, 243, 255)
+        label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = frame
         
+        self:RegisterLabel(label, translationKey)
+        
         local toggleBtn = Instance.new("TextButton")
-        toggleBtn.Name = Engine.Modules.ConfigManager.Settings[configKey] and "ToggledBG" or "OffBG"
-        toggleBtn.Size = UDim2.new(0, 42, 0, 22)
-        toggleBtn.Position = UDim2.new(1, -52, 0.5, -11)
-        toggleBtn.BackgroundColor3 = Engine.Modules.ConfigManager.Settings[configKey] and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(45, 52, 68)
-        toggleBtn.BackgroundTransparency = Engine.Modules.ConfigManager.Settings[configKey] and 0.2 or 0.4
+        local isON = Engine.Modules.ConfigManager.Settings[configKey]
+        toggleBtn.Name = isON and "ToggledBG" or "OffBG"
+        toggleBtn.Size = UDim2.new(0, 46, 0, 24)
+        toggleBtn.Position = UDim2.new(1, -56, 0.5, -12)
+        toggleBtn.BackgroundColor3 = isON and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(28, 36, 52)
+        toggleBtn.BackgroundTransparency = isON and 0.15 or 0.4
         toggleBtn.Text = ""
         toggleBtn.Parent = frame
         Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
+
+        local toggleStroke = Instance.new("UIStroke")
+        toggleStroke.Thickness = 1.2
+        toggleStroke.Color = isON and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(60, 70, 90)
+        toggleStroke.Transparency = 0.3
+        toggleStroke.Parent = toggleBtn
         
         local circle = Instance.new("Frame")
-        circle.Size = UDim2.new(0, 18, 0, 18)
-        circle.Position = Engine.Modules.ConfigManager.Settings[configKey] and UDim2.new(1, -20, 0, 2) or UDim2.new(0, 2, 0, 2)
+        circle.Size = UDim2.new(0, 20, 0, 20)
+        circle.Position = isON and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
         circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         circle.Parent = toggleBtn
         Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(0, 6, 0, 6)
+        dot.Position = UDim2.new(0.5, -3, 0.5, -3)
+        dot.BackgroundColor3 = isON and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(150, 160, 180)
+        dot.Parent = circle
+        Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
         
-        if Engine.Modules.ConfigManager.Settings[configKey] then table.insert(self.ChromaObjects, toggleBtn) end
+        if isON then table.insert(self.ChromaObjects, toggleBtn) end
         
         local function updateVisual(newState)
             toggleBtn.Name = newState and "ToggledBG" or "OffBG"
-            local goalPos = newState and UDim2.new(1, -20, 0, 2) or UDim2.new(0, 2, 0, 2)
-            local goalColor = newState and Color3.fromRGB(0, 255, 150) or Color3.fromRGB(45, 52, 68)
+            local goalPos = newState and UDim2.new(1, -22, 0, 2) or UDim2.new(0, 2, 0, 2)
+            local goalColor = newState and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(28, 36, 52)
+            local goalStroke = newState and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(60, 70, 90)
+            local dotColor = newState and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(150, 160, 180)
             
-            Engine.Services.TweenService:Create(circle, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos}):Play()
-            Engine.Services.TweenService:Create(toggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = goalColor}):Play()
+            Engine.Services.TweenService:Create(circle, TweenInfo.new(0.22, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = goalPos}):Play()
+            Engine.Services.TweenService:Create(toggleBtn, TweenInfo.new(0.22), {BackgroundColor3 = goalColor}):Play()
+            Engine.Services.TweenService:Create(toggleStroke, TweenInfo.new(0.22), {Color = goalStroke}):Play()
+            Engine.Services.TweenService:Create(dot, TweenInfo.new(0.22), {BackgroundColor3 = dotColor}):Play()
             
-            if newState then table.insert(self.ChromaObjects, toggleBtn) else
-                for i, obj in ipairs(self.ChromaObjects) do if obj == toggleBtn then table.remove(self.ChromaObjects, i) break end end
+            if newState then 
+                table.insert(self.ChromaObjects, toggleBtn) 
+            else
+                for i, obj in ipairs(self.ChromaObjects) do 
+                    if obj == toggleBtn then table.remove(self.ChromaObjects, i) break end 
+                end
             end
         end
 
@@ -2665,55 +3080,72 @@ Engine.Modules.UIController = {
         end)
     end,
     
-    CreateSlider = function(self, parent, text, min, max, configKey)
+    CreateSlider = function(self, parent, translationKey, min, max, configKey)
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, -10, 0, 56)
-        frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        frame.BackgroundTransparency = 0.94
+        frame.Size = UDim2.new(1, -10, 0, 60)
+        frame.BackgroundColor3 = Color3.fromRGB(15, 21, 34)
+        frame.BackgroundTransparency = 0.35
         frame.Parent = parent
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
+
+        local frameStroke = Instance.new("UIStroke")
+        frameStroke.Thickness = 1
+        frameStroke.Color = Color3.fromRGB(0, 240, 255)
+        frameStroke.Transparency = 0.85
+        frameStroke.Parent = frame
         
         local default = Engine.Modules.ConfigManager.Settings[configKey]
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -12, 0, 24)
-        label.Position = UDim2.new(0, 12, 0, 4)
+        label.Size = UDim2.new(1, -14, 0, 24)
+        label.Position = UDim2.new(0, 14, 0, 4)
         label.BackgroundTransparency = 1
-        label.Text = text .. ": " .. string.format("%.2f", default)
-        label.TextColor3 = Color3.fromRGB(225, 235, 248)
-        label.Font = Enum.Font.GothamMedium
+        label.Text = Engine.Modules.I18n:Get(translationKey) .. ": " .. string.format("%.2f", default)
+        label.TextColor3 = Color3.fromRGB(235, 243, 255)
+        label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = frame
         
+        self:RegisterLabel(label, translationKey, "", "", true, configKey)
+        
         local bar = Instance.new("Frame")
-        bar.Size = UDim2.new(1, -24, 0, 6)
-        bar.Position = UDim2.new(0, 12, 0, 36)
-        bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-        bar.BackgroundTransparency = 0.85
+        bar.Size = UDim2.new(1, -28, 0, 7)
+        bar.Position = UDim2.new(0, 14, 0, 39)
+        bar.BackgroundColor3 = Color3.fromRGB(28, 36, 52)
+        bar.BackgroundTransparency = 0.3
         bar.Parent = frame
         Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
         
         local fill = Instance.new("Frame")
         fill.Name = "ToggledBG"
         fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+        fill.BackgroundColor3 = Color3.fromRGB(0, 230, 255)
         fill.Parent = bar
         Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
         table.insert(self.ChromaObjects, fill)
         
         local knob = Instance.new("TextButton")
-        knob.Size = UDim2.new(0, 14, 0, 14)
-        knob.Position = UDim2.new((default - min) / (max - min), -7, 0.5, -7)
+        knob.Size = UDim2.new(0, 17, 0, 17)
+        knob.Position = UDim2.new((default - min) / (max - min), -8.5, 0.5, -8.5)
         knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         knob.Text = ""
         knob.Parent = bar
         Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+        local knobStroke = Instance.new("UIStroke")
+        knobStroke.Thickness = 1.6
+        knobStroke.Color = Color3.fromRGB(0, 240, 255)
+        knobStroke.Parent = knob
         
         local dragging = false
-        knob.MouseButton1Down:Connect(function() dragging = true end)
+        knob.MouseButton1Down:Connect(function() 
+            dragging = true 
+            Engine.Services.TweenService:Create(knob, TweenInfo.new(0.15), {Size = UDim2.new(0, 21, 0, 21)}):Play()
+        end)
         Engine.Services.UIS.InputEnded:Connect(function(i)
             if i.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
                 dragging = false
+                Engine.Services.TweenService:Create(knob, TweenInfo.new(0.15), {Size = UDim2.new(0, 17, 0, 17)}):Play()
                 Engine.Modules.ConfigManager:Save()
             end
         end)
@@ -2726,8 +3158,8 @@ Engine.Modules.UIController = {
                 local percent = math.clamp((mouseX - barX) / barW, 0, 1)
                 local val = min + (max - min) * percent
                 fill.Size = UDim2.new(percent, 0, 1, 0)
-                knob.Position = UDim2.new(percent, -7, 0.5, -7)
-                label.Text = text .. ": " .. string.format("%.2f", val)
+                knob.Position = UDim2.new(percent, -8.5, 0.5, -8.5)
+                label.Text = Engine.Modules.I18n:Get(translationKey) .. ": " .. string.format("%.2f", val)
                 Engine.Modules.ConfigManager.Settings[configKey] = val
             end
         end)
