@@ -2432,45 +2432,62 @@ Engine.Modules.UIController = {
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
         
-        -- Floating Cyber Orb Logo Button
+        -- Floating Ultra-Cyber Crystal Orb Logo Holder (Draggable Container)
+        local logoHolder = Instance.new("Frame")
+        logoHolder.Name = "RBZoo_LogoHolder"
+        logoHolder.Size = UDim2.new(0, 68, 0, 68)
+        logoHolder.Position = UDim2.new(0, 24, 0.5, -34)
+        logoHolder.BackgroundTransparency = 1
+        logoHolder.Active = true
+        logoHolder.Parent = sg
+
         self.LogoButton = Instance.new("TextButton")
-        self.LogoButton.Size = UDim2.new(0, 64, 0, 64)
-        self.LogoButton.Position = UDim2.new(0, 24, 0.5, -32)
-        self.LogoButton.BackgroundColor3 = Color3.fromRGB(8, 12, 20)
+        self.LogoButton.Size = UDim2.new(1, 0, 1, 0)
+        self.LogoButton.Position = UDim2.new(0, 0, 0, 0)
+        self.LogoButton.BackgroundColor3 = Color3.fromRGB(252, 254, 255)
         self.LogoButton.BackgroundTransparency = 0.15
         self.LogoButton.Text = ""
         self.LogoButton.Active = true
-        self.LogoButton.Draggable = true
-        self.LogoButton.Parent = sg
+        self.LogoButton.Parent = logoHolder
         Instance.new("UICorner", self.LogoButton).CornerRadius = UDim.new(1, 0)
 
-        local logoGlowRing = Instance.new("Frame")
-        logoGlowRing.Size = UDim2.new(1, 12, 1, 12)
-        logoGlowRing.Position = UDim2.new(0, -6, 0, -6)
-        logoGlowRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
-        logoGlowRing.BackgroundTransparency = 0.85
-        logoGlowRing.Parent = self.LogoButton
-        Instance.new("UICorner", logoGlowRing).CornerRadius = UDim.new(1, 0)
-        table.insert(self.ChromaObjects, logoGlowRing)
+        -- Outer Hologram Glow Halo Ring (Pulsing)
+        local outerGlowHalo = Instance.new("Frame")
+        outerGlowHalo.Size = UDim2.new(1, 20, 1, 20)
+        outerGlowHalo.Position = UDim2.new(0, -10, 0, -10)
+        outerGlowHalo.BackgroundColor3 = Color3.fromRGB(0, 220, 255)
+        outerGlowHalo.BackgroundTransparency = 0.8
+        outerGlowHalo.Parent = self.LogoButton
+        Instance.new("UICorner", outerGlowHalo).CornerRadius = UDim.new(1, 0)
+        table.insert(self.ChromaObjects, outerGlowHalo)
+
+        -- Inner Rotating Rainbow Stroke Ring
+        local logoStroke = Instance.new("UIStroke")
+        logoStroke.Thickness = 3
+        logoStroke.Transparency = 0.1
+        logoStroke.Parent = self.LogoButton
+        table.insert(self.ChromaObjects, logoStroke)
+        table.insert(self.ChromaObjects, self.LogoButton)
         
         local logoAsset = Engine:GetLogoAsset()
         local logoImg = Instance.new("ImageLabel")
-        logoImg.Size = UDim2.new(1, -6, 1, -6)
-        logoImg.Position = UDim2.new(0, 3, 0, 3)
+        logoImg.Size = UDim2.new(1, -8, 1, -8)
+        logoImg.Position = UDim2.new(0, 4, 0, 4)
         logoImg.BackgroundTransparency = 1
         if logoAsset then logoImg.Image = logoAsset end
         logoImg.ScaleType = Enum.ScaleType.Crop
         logoImg.Parent = self.LogoButton
         Instance.new("UICorner", logoImg).CornerRadius = UDim.new(1, 0)
-        
-        local logoStroke = Instance.new("UIStroke")
-        logoStroke.Thickness = 2.5
-        logoStroke.Transparency = 0.15
-        logoStroke.Parent = self.LogoButton
-        table.insert(self.ChromaObjects, logoStroke)
-        table.insert(self.ChromaObjects, self.LogoButton)
 
-        -- Online Status Badge Dot on Logo
+        -- Pulsing Radar Waves on Online Status Dot
+        local radarWave = Instance.new("Frame")
+        radarWave.Size = UDim2.new(0, 14, 0, 14)
+        radarWave.Position = UDim2.new(1, -13, 1, -13)
+        radarWave.BackgroundColor3 = Color3.fromRGB(0, 255, 160)
+        radarWave.BackgroundTransparency = 0.5
+        radarWave.Parent = self.LogoButton
+        Instance.new("UICorner", radarWave).CornerRadius = UDim.new(1, 0)
+
         local onlineDot = Instance.new("Frame")
         onlineDot.Size = UDim2.new(0, 12, 0, 12)
         onlineDot.Position = UDim2.new(1, -12, 1, -12)
@@ -2480,22 +2497,146 @@ Engine.Modules.UIController = {
 
         local onlineDotStroke = Instance.new("UIStroke")
         onlineDotStroke.Thickness = 1.5
-        onlineDotStroke.Color = Color3.fromRGB(8, 12, 20)
+        onlineDotStroke.Color = Color3.fromRGB(15, 22, 36)
         onlineDotStroke.Parent = onlineDot
-        
+
+        -- Mini VIP Hologram Label Badge attached to Logo
+        local logoBadge = Instance.new("Frame")
+        logoBadge.Size = UDim2.new(0, 80, 0, 18)
+        logoBadge.Position = UDim2.new(0.5, -40, 1, 4)
+        logoBadge.BackgroundColor3 = Color3.fromRGB(250, 252, 255)
+        logoBadge.BackgroundTransparency = 0.2
+        logoBadge.Parent = self.LogoButton
+        Instance.new("UICorner", logoBadge).CornerRadius = UDim.new(0, 9)
+
+        local badgeStroke = Instance.new("UIStroke")
+        badgeStroke.Thickness = 1.2
+        badgeStroke.Color = Color3.fromRGB(0, 200, 255)
+        badgeStroke.Parent = logoBadge
+        table.insert(self.ChromaObjects, badgeStroke)
+
+        local badgeText = Instance.new("TextLabel")
+        badgeText.Size = UDim2.new(1, 0, 1, 0)
+        badgeText.BackgroundTransparency = 1
+        badgeText.Text = "⚡ CLASS QUID"
+        badgeText.Font = Enum.Font.GothamBlack
+        badgeText.TextSize = 8.5
+        badgeText.TextColor3 = Color3.fromRGB(15, 25, 45)
+        badgeText.Parent = logoBadge
+
+        -- Continuous 60 FPS Levitation (Up & Down Floating) & Vibrant Rainbow Chroma Cycling
         task.spawn(function()
-            task.wait(0.5)
-            local retryAsset = Engine:GetLogoAsset()
-            if retryAsset and logoImg.Image ~= retryAsset then
-                logoImg.Image = retryAsset
+            local tickCounter = 0
+            
+            Engine.Services.RunService.RenderStepped:Connect(function(dt)
+                tickCounter = tickCounter + dt
+                
+                -- 1. Smooth Floating Up and Down inside Draggable logoHolder (10px amplitude)
+                local hoverY = math.sin(tickCounter * 2.2) * 10
+                self.LogoButton.Position = UDim2.new(0, 0, 0, hoverY)
+                
+                -- 2. Dynamic Rainbow Chroma Cycling (Color3.fromHSV)
+                local chromaColor = Color3.fromHSV((tickCounter * 0.35) % 1, 0.85, 1)
+                local chromaColor2 = Color3.fromHSV(((tickCounter * 0.35) + 0.25) % 1, 0.85, 1)
+                
+                logoStroke.Color = chromaColor
+                outerGlowHalo.BackgroundColor3 = chromaColor
+                badgeStroke.Color = chromaColor2
+                
+                -- 3. Outer Halo Pulsing & Breathing
+                local pulseScale = 22 + math.sin(tickCounter * 3.5) * 8
+                local pulseTrans = 0.7 + math.sin(tickCounter * 3.5) * 0.18
+                outerGlowHalo.Size = UDim2.new(1, pulseScale, 1, pulseScale)
+                outerGlowHalo.Position = UDim2.new(0, -pulseScale/2, 0, -pulseScale/2)
+                outerGlowHalo.BackgroundTransparency = pulseTrans
+                
+                -- 4. Radar Wave Ping Animation
+                local waveSize = 12 + ((tickCounter * 22) % 16)
+                local waveAlpha = (16 - (waveSize - 12)) / 16 * 0.75
+                radarWave.Size = UDim2.new(0, waveSize, 0, waveSize)
+                radarWave.Position = UDim2.new(1, -6 - (waveSize/2), 1, -6 - (waveSize/2))
+                radarWave.BackgroundTransparency = math.clamp(1 - waveAlpha, 0.25, 1)
+                radarWave.BackgroundColor3 = Color3.fromRGB(0, 255, 160)
+
+                -- Retry logo asset if needed
+                local retryAsset = Engine:GetLogoAsset()
+                if retryAsset and logoImg.Image ~= retryAsset then
+                    logoImg.Image = retryAsset
+                end
+            end)
+        end)
+
+        -- Micro-Animations: Hover Scale & Elastic Bounce
+        self.LogoButton.MouseEnter:Connect(function()
+            Engine.Services.TweenService:Create(self.LogoButton, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 76, 0, 76),
+                BackgroundTransparency = 0.05
+            }):Play()
+            Engine.Services.TweenService:Create(logoImg, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Rotation = 12
+            }):Play()
+        end)
+
+        self.LogoButton.MouseLeave:Connect(function()
+            Engine.Services.TweenService:Create(self.LogoButton, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 68, 0, 68),
+                BackgroundTransparency = 0.15
+            }):Play()
+            Engine.Services.TweenService:Create(logoImg, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                Rotation = 0
+            }):Play()
+        end)
+
+        -- Custom Touch & Mouse Dragging Engine for Logo & Avatar Image
+        local isDraggingLogo = false
+        local dragStartPos = nil
+        local startHolderPos = nil
+        local dragDistance = 0
+
+        local function handleInputBegan(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                isDraggingLogo = true
+                dragStartPos = input.Position
+                startHolderPos = logoHolder.Position
+                dragDistance = 0
+                
+                local connChanged, connEnded
+                connChanged = Engine.Services.UIS.InputChanged:Connect(function(inp)
+                    if (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) and isDraggingLogo then
+                        local delta = inp.Position - dragStartPos
+                        dragDistance = dragDistance + math.abs(delta.X) + math.abs(delta.Y)
+                        logoHolder.Position = UDim2.new(
+                            startHolderPos.X.Scale, startHolderPos.X.Offset + delta.X,
+                            startHolderPos.Y.Scale, startHolderPos.Y.Offset + delta.Y
+                        )
+                    end
+                end)
+                
+                connEnded = Engine.Services.UIS.InputEnded:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                        isDraggingLogo = false
+                        if connChanged then connChanged:Disconnect() end
+                        if connEnded then connEnded:Disconnect() end
+                        
+                        -- If user tapped without dragging, toggle Main Menu
+                        if dragDistance < 8 then
+                            Engine.Services.TweenService:Create(self.LogoButton, TweenInfo.new(0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                                Size = UDim2.new(1, -8, 1, -8)
+                            }):Play()
+                            task.delay(0.1, function()
+                                Engine.Services.TweenService:Create(self.LogoButton, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                                    Size = UDim2.new(1, 0, 1, 0)
+                                }):Play()
+                            end)
+                            self.MainFrame.Visible = not self.MainFrame.Visible
+                        end
+                    end
+                end)
             end
-        end)
-        
-        self:AddHoverAnim(self.LogoButton, Color3.fromRGB(8, 12, 20), Color3.fromRGB(16, 24, 40))
-        
-        self.LogoButton.MouseButton1Click:Connect(function()
-            self.MainFrame.Visible = not self.MainFrame.Visible
-        end)
+        end
+
+        self.LogoButton.InputBegan:Connect(handleInputBegan)
+        logoHolder.InputBegan:Connect(handleInputBegan)
         
         -- Main Cyberpunk Liquid Glass Frame
         self.MainFrame = Instance.new("Frame")
