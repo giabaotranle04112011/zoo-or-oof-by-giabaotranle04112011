@@ -1169,18 +1169,7 @@ local function DeterminePlayerRole(plr)
         if attrRole then
             local rStr = tostring(attrRole):lower()
             if rStr:find("zoo") then isZoo = true
-            elseif rStr:find("oof") then isOof = true end
-        end
-    end
-    
-    local char = plr.Character
-    if char then
-        for _, v in ipairs(char:GetChildren()) do
-            if v:IsA("Tool") then
-                local n = v.Name:lower()
-                if n:find("gun") or n:find("tranq") or n:find("taser") then isZoo = true
-                elseif n:find("claw") or n:find("bite") then isOof = true end
-            end
+            elseif rStr:find("oof") or rStr:find("animal") then isOof = true end
         end
     end
     
@@ -1189,13 +1178,9 @@ local function DeterminePlayerRole(plr)
     return "NEUTRAL"
 end
 
--- ==========================================
--- [7] HUNTER HUD MODULE
--- ==========================================
 Engine.Modules.HunterHUD = {
     Gui = nil,
     Labels = {},
-    
     Init = function(self)
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
@@ -1205,60 +1190,102 @@ Engine.Modules.HunterHUD = {
         self.Gui = sg
         
         local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(0, 255, 0, 240)
-        frame.Position = UDim2.new(0, 15, 0.25, 0)
-        frame.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
-        frame.BackgroundTransparency = 0.32
+        frame.Size = UDim2.new(0, 260, 0, 245)
+        frame.Position = UDim2.new(0, 16, 0.22, 0) -- Đặt bên trái màn hình dưới nút game để KHÔNG CHỒNG NHIỆM VỤ!
+        frame.BackgroundColor3 = Color3.fromRGB(252, 254, 255)
+        frame.BackgroundTransparency = 0.52
         frame.Active = true
         frame.Draggable = true
+        frame.ClipsDescendants = true
         frame.Parent = sg
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 14)
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 16)
         
         local stroke = Instance.new("UIStroke")
-        stroke.Thickness = 1.5
-        stroke.Color = Color3.fromRGB(0, 240, 255)
-        stroke.Transparency = 0.3
+        stroke.Thickness = 1.8
+        stroke.Color = Color3.fromRGB(0, 180, 255)
+        stroke.Transparency = 0.2
         stroke.Parent = frame
         
+        -- Header Bar Đen Bóng Bẩy
+        local headerBar = Instance.new("Frame")
+        headerBar.Size = UDim2.new(1, 0, 0, 32)
+        headerBar.BackgroundColor3 = Color3.fromRGB(15, 22, 36)
+        headerBar.Parent = frame
+        Instance.new("UICorner", headerBar).CornerRadius = UDim.new(0, 16)
+        
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, 0, 0, 26)
+        title.Size = UDim2.new(1, -38, 1, 0)
+        title.Position = UDim2.new(0, 12, 0, 0)
         title.BackgroundTransparency = 1
         title.Text = "⚡ CLASS QUID HUNTER V8.5"
         title.Font = Enum.Font.GothamBlack
         title.TextSize = 11
         title.TextColor3 = Color3.fromRGB(0, 240, 255)
-        title.Parent = frame
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = headerBar
         
+        -- Nút Tải Thu Gọn HUD (- / +)
+        local btnCollapse = Instance.new("TextButton")
+        btnCollapse.Size = UDim2.new(0, 24, 0, 24)
+        btnCollapse.Position = UDim2.new(1, -28, 0, 4)
+        btnCollapse.BackgroundColor3 = Color3.fromRGB(28, 40, 62)
+        btnCollapse.Text = "-"
+        btnCollapse.Font = Enum.Font.GothamBlack
+        btnCollapse.TextSize = 14
+        btnCollapse.TextColor3 = Color3.fromRGB(0, 255, 180)
+        btnCollapse.Parent = headerBar
+        Instance.new("UICorner", btnCollapse).CornerRadius = UDim.new(0, 6)
+        
+        local isCollapsed = false
+        btnCollapse.MouseButton1Click:Connect(function()
+            isCollapsed = not isCollapsed
+            btnCollapse.Text = isCollapsed and "+" or "-"
+            Engine.Services.TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+                Size = isCollapsed and UDim2.new(0, 260, 0, 32) or UDim2.new(0, 260, 0, 245)
+            }):Play()
+        end)
+        
+        local contentContainer = Instance.new("Frame")
+        contentContainer.Size = UDim2.new(1, -16, 1, -40)
+        contentContainer.Position = UDim2.new(0, 8, 0, 36)
+        contentContainer.BackgroundTransparency = 1
+        contentContainer.Parent = frame
+
         local list = Instance.new("UIListLayout")
-        list.Padding = UDim.new(0, 2)
+        list.Padding = UDim.new(0, 3)
         list.SortOrder = Enum.SortOrder.LayoutOrder
-        list.Parent = frame
-        
-        title.LayoutOrder = 0
+        list.Parent = contentContainer
         
         local function addLabel(key, defaultText)
+            local lblFrame = Instance.new("Frame")
+            lblFrame.Size = UDim2.new(1, 0, 0, 18)
+            lblFrame.BackgroundColor3 = Color3.fromRGB(238, 244, 254)
+            lblFrame.BackgroundTransparency = 0.65
+            lblFrame.Parent = contentContainer
+            Instance.new("UICorner", lblFrame).CornerRadius = UDim.new(0, 6)
+            
             local lbl = Instance.new("TextLabel")
-            lbl.Size = UDim2.new(1, -20, 0, 17)
-            lbl.Position = UDim2.new(0, 10, 0, 0)
+            lbl.Size = UDim2.new(1, -12, 1, 0)
+            lbl.Position = UDim2.new(0, 6, 0, 0)
             lbl.BackgroundTransparency = 1
             lbl.Text = defaultText
             lbl.Font = Enum.Font.GothamBold
             lbl.TextSize = 10
-            lbl.TextColor3 = Color3.fromRGB(220, 230, 245)
+            lbl.TextColor3 = Color3.fromRGB(15, 28, 48) -- Chữ màu tối tương phản 100% trên nền kính trắng!
             lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Parent = frame
+            lbl.Parent = lblFrame
             self.Labels[key] = lbl
-            return lbl
+            return lblFrame
         end
         
-        addLabel("Role", "Role: Loading...").LayoutOrder = 1
-        addLabel("Target", "Target: None").LayoutOrder = 2
-        addLabel("Distance", "Distance: N/A").LayoutOrder = 3
-        addLabel("Status", "Status: Idle").LayoutOrder = 4
+        addLabel("Role", "👤 Role: Loading...").LayoutOrder = 1
+        addLabel("Target", "🎯 Target: None").LayoutOrder = 2
+        addLabel("Distance", "📏 Distance: N/A").LayoutOrder = 3
+        addLabel("Status", "⚡ Status: Idle").LayoutOrder = 4
         addLabel("Hotkeys", "⌨️ [P]Farm:OFF | [M]Aim:OFF").LayoutOrder = 5
         addLabel("Hotkeys2", "⌨️ [F]Fly:OFF  | [Q/E]Skill:AUTO").LayoutOrder = 6
-        addLabel("OofAlive", "OOF Alive: 0").LayoutOrder = 7
-        addLabel("Kills", "Total Kills: 0").LayoutOrder = 8
+        addLabel("OofAlive", "🐾 OOF Alive: 0").LayoutOrder = 7
+        addLabel("Kills", "⚔️ Total Kills: 0").LayoutOrder = 8
         addLabel("KeyTime", "⏳ Key Hạn: N/A").LayoutOrder = 9
         addLabel("Author", "👑 Author: " .. Engine.Author).LayoutOrder = 10
         
@@ -1271,28 +1298,27 @@ Engine.Modules.HunterHUD = {
                 else
                     frame.Visible = true
                     
-                    stroke.Color = Color3.fromHSV((tick() * 0.2) % 1, 0.75, 1)
+                    stroke.Color = Color3.fromHSV((tick() * 0.15) % 1, 0.7, 1)
                     
-                    -- Interval 0.2s (2 ticks): Role, Target, Distance, Status, Hotkeys
                     if ticks % 2 == 0 then
                         local role = DeterminePlayerRole(LocalPlayer)
                         Engine.State.CurrentRole = role
                         
                         local roleStr = "🟢 NEUTRAL (Human)"
-                        local roleColor = Color3.fromRGB(50, 255, 100)
+                        local roleColor = Color3.fromRGB(0, 160, 80)
                         if role == "ZOOKEEPER" then
                             roleStr = "🔴 ZOOKEEPER (Zoo)"
-                            roleColor = Color3.fromRGB(255, 60, 60)
+                            roleColor = Color3.fromRGB(220, 30, 30)
                         elseif role == "OOF" then
                             roleStr = "🔵 OOF (Animal)"
-                            roleColor = Color3.fromRGB(0, 150, 255)
+                            roleColor = Color3.fromRGB(0, 120, 240)
                         end
-                        self.Labels.Role.Text = "Role: " .. roleStr
+                        self.Labels.Role.Text = "👤 Role: " .. roleStr
                         self.Labels.Role.TextColor3 = roleColor
                         
                         local targetName = "None"
                         local distStr = "N/A"
-                        local statusStr = Engine.Modules.ConfigManager.Settings.AutoFarm and "Hunting" or "Idle"
+                        local statusStr = Engine.Modules.ConfigManager.Settings.AutoFarm and "HUNTING" or "IDLE"
                         
                         if Engine.State.CurrentTarget and Engine.State.CurrentTarget.Parent then
                             targetName = Engine.State.CurrentTarget.Parent.Name
@@ -1301,12 +1327,12 @@ Engine.Modules.HunterHUD = {
                                 local d = math.floor((Engine.State.CurrentTarget.Position - hrp.Position).Magnitude)
                                 distStr = tostring(d) .. " studs"
                             end
-                            statusStr = "LOCKED & FIRING"
+                            statusStr = "FIRING & DODGING"
                         end
                         
-                        self.Labels.Target.Text = "Target: " .. targetName
-                        self.Labels.Distance.Text = "Distance: " .. distStr
-                        self.Labels.Status.Text = "Status: " .. statusStr
+                        self.Labels.Target.Text = "🎯 Target: " .. targetName
+                        self.Labels.Distance.Text = "📏 Distance: " .. distStr
+                        self.Labels.Status.Text = "⚡ Status: " .. statusStr
                         
                         local farmTxt = Engine.Modules.ConfigManager.Settings.AutoFarm and "ON" or "OFF"
                         local aimTxt = Engine.Modules.ConfigManager.Settings.Aimbot and "ON" or "OFF"
@@ -1315,13 +1341,11 @@ Engine.Modules.HunterHUD = {
                         self.Labels.Hotkeys2.Text = string.format("⌨️ [F]Fly:%s | [Q/E]Skill:AUTO", flyTxt)
                     end
 
-                    -- Interval 0.5s (5 ticks): OOF Alive, Total Kills
                     if ticks % 5 == 0 then
-                        self.Labels.OofAlive.Text = "OOF Alive: " .. tostring(#Engine.Cache.Oofs)
-                        self.Labels.Kills.Text = "Total Kills: " .. tostring(Engine.Cache.TotalKills)
+                        self.Labels.OofAlive.Text = "🐾 OOF Alive: " .. tostring(#Engine.Cache.Oofs)
+                        self.Labels.Kills.Text = "⚔️ Total Kills: " .. tostring(Engine.Cache.TotalKills)
                     end
 
-                    -- Interval 1.0s (10 ticks): Key Remaining Time
                     if ticks % 10 == 0 then
                         self.Labels.KeyTime.Text = "⏳ Key Hạn: " .. Engine.Modules.KeySystem:GetRemainingTime()
                         self.Labels.Author.Text = "👑 Author: " .. Engine.Author
@@ -1331,7 +1355,6 @@ Engine.Modules.HunterHUD = {
         end)
     end
 }
-
 -- ==========================================
 -- [8] FAST SCANNER & TARGETING
 -- ==========================================
@@ -1473,7 +1496,7 @@ Engine.Modules.FarmManager = {
         LastDodgeDir = Vector3.zero
     },
     
-    -- Smart Dodge AI Engine (Active Tactical Evasion & Line-of-Sight Break)
+    -- Smart Dodge AI Engine (GOD-MODE HYPER-REFLEXES & INSTANT TELEPORT EVASION)
     ScanIncomingProjectiles = function(self, myPos)
         if not Engine.Modules.ConfigManager.Settings.AutoDodge then 
             self.DodgeAIState.ActiveVector = Vector3.zero
@@ -1484,68 +1507,72 @@ Engine.Modules.FarmManager = {
             return Vector3.zero 
         end
         
-        local dodgeRadius = Engine.Modules.ConfigManager.Settings.DodgeRadius or 50
+        local dodgeRadius = Engine.Modules.ConfigManager.Settings.DodgeRadius or 65
         local now = tick()
         local projectiles = {}
         local totalThreat = 0
         local highestThreatTimeToImpact = 999
         
-        -- 1. THREAT ANALYSIS & PROJECTION SCANNING
+        -- 1. HYPER-WIDE THREAT ANALYSIS & PROJECTION SCANNING (Bán kính 65 studs, Tần số siêu tốc)
         pcall(function()
             local folder = Engine.Services.Workspace:FindFirstChild("Gameplay") or Engine.Services.Workspace
-            for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("BasePart") or child:IsA("Model") then
-                    local name = child.Name:lower()
-                    if name:find("bullet") or name:find("proj") or name:find("tranq") or name:find("dart") or name:find("laser") or name:find("ammo") or name:find("net") or name:find("trap") or name:find("shot") or name:find("ball") or name:find("rocket") or name:find("part") or name:find("hitbox") then
-                        local projPos = child:IsA("Model") and (child.PrimaryPart and child.PrimaryPart.Position or child:GetPivot().Position) or child.Position
-                        local dist = (projPos - myPos).Magnitude
-                        
-                        if dist <= dodgeRadius then
-                            local projVel = Vector3.zero
-                            if child:IsA("BasePart") then
-                                projVel = child.AssemblyLinearVelocity
-                            elseif child:IsA("Model") and child.PrimaryPart then
-                                projVel = child.PrimaryPart.AssemblyLinearVelocity
-                            end
+            local targetsToCheck = {folder, Engine.Services.Workspace}
+            
+            for _, parentObj in ipairs(targetsToCheck) do
+                for _, child in ipairs(parentObj:GetChildren()) do
+                    if child:IsA("BasePart") or child:IsA("Model") then
+                        local name = child.Name:lower()
+                        if name:find("bullet") or name:find("proj") or name:find("tranq") or name:find("dart") or name:find("laser") or name:find("ammo") or name:find("net") or name:find("trap") or name:find("shot") or name:find("ball") or name:find("rocket") or name:find("part") or name:find("hitbox") or name:find("arrow") or name:find("ray") then
+                            local projPos = child:IsA("Model") and (child.PrimaryPart and child.PrimaryPart.Position or child:GetPivot().Position) or child.Position
+                            local dist = (projPos - myPos).Magnitude
                             
-                            local projSpeed = projVel.Magnitude
-                            local toPlayer = (myPos - projPos).Unit
-                            local isHeadingToMe = false
-                            local timeToImpact = 999
-                            local closestApproachDist = dist
-                            
-                            if projSpeed > 1 then
-                                local projDir = projVel.Unit
-                                local dotProduct = projDir:Dot(toPlayer)
-                                if dotProduct > -0.1 then
-                                    local projToPlayer = myPos - projPos
-                                    local projProjection = projDir * projToPlayer:Dot(projDir)
-                                    closestApproachDist = (projToPlayer - projProjection).Magnitude
-                                    timeToImpact = projProjection.Magnitude / projSpeed
-                                    if closestApproachDist <= 14 and timeToImpact >= 0 and timeToImpact <= 3.2 then
-                                        isHeadingToMe = true
-                                    end
+                            if dist <= dodgeRadius then
+                                local projVel = Vector3.zero
+                                if child:IsA("BasePart") then
+                                    projVel = child.AssemblyLinearVelocity
+                                elseif child:IsA("Model") and child.PrimaryPart then
+                                    projVel = child.PrimaryPart.AssemblyLinearVelocity
                                 end
-                            elseif dist <= 22 then
-                                isHeadingToMe = true
-                                timeToImpact = dist / 20
-                                closestApproachDist = dist
-                            end
-                            
-                            if isHeadingToMe then
-                                local ThreatScore = math.clamp((3.2 - timeToImpact) * 50 + (14 - closestApproachDist) * 15, 15, 150)
-                                table.insert(projectiles, {
-                                    Pos = projPos,
-                                    Vel = projVel,
-                                    Speed = projSpeed,
-                                    Dist = dist,
-                                    TTI = timeToImpact,
-                                    ClosestDist = closestApproachDist,
-                                    Score = ThreatScore
-                                })
-                                totalThreat = totalThreat + ThreatScore
-                                if timeToImpact < highestThreatTimeToImpact then
-                                    highestThreatTimeToImpact = timeToImpact
+                                
+                                local projSpeed = projVel.Magnitude
+                                local toPlayer = (myPos - projPos).Unit
+                                local isHeadingToMe = false
+                                local timeToImpact = 999
+                                local closestApproachDist = dist
+                                
+                                if projSpeed > 1 then
+                                    local projDir = projVel.Unit
+                                    local dotProduct = projDir:Dot(toPlayer)
+                                    if dotProduct > -0.2 then
+                                        local projToPlayer = myPos - projPos
+                                        local projProjection = projDir * projToPlayer:Dot(projDir)
+                                        closestApproachDist = (projToPlayer - projProjection).Magnitude
+                                        timeToImpact = projProjection.Magnitude / projSpeed
+                                        if closestApproachDist <= 18 and timeToImpact >= 0 and timeToImpact <= 3.8 then
+                                            isHeadingToMe = true
+                                        end
+                                    end
+                                elseif dist <= 28 then
+                                    isHeadingToMe = true
+                                    timeToImpact = dist / 25
+                                    closestApproachDist = dist
+                                end
+                                
+                                if isHeadingToMe then
+                                    local ThreatScore = math.clamp((3.8 - timeToImpact) * 60 + (18 - closestApproachDist) * 20, 20, 200)
+                                    table.insert(projectiles, {
+                                        Pos = projPos,
+                                        Vel = projVel,
+                                        Speed = projSpeed,
+                                        Dist = dist,
+                                        TTI = timeToImpact,
+                                        ClosestDist = closestApproachDist,
+                                        Score = ThreatScore
+                                    })
+                                    totalThreat = totalThreat + ThreatScore
+                                    if timeToImpact < highestThreatTimeToImpact then
+                                        highestThreatTimeToImpact = timeToImpact
+                                    end
                                 end
                             end
                         end
@@ -1556,62 +1583,69 @@ Engine.Modules.FarmManager = {
         
         self.DodgeAIState.CurrentThreatScore = totalThreat
         
-        -- 2. TACTICAL CONTINUOUS POSITION SHIFTING (Di chuyển đảo vị trí liên tục để địch KHÔNG Thể Nhắm Tới)
-        -- Ngay cả khi chưa có đạn, vẫn đảo vị trí 3D bất ngờ xung quanh mục tiêu để gây nhiễu tầm nhắm!
+        -- 2. PHANTOM 3D OMNI-WEAVE (Đổi Độ Cao Thần Tốc 5m ➔ 45m, Khoảng Cách Xa/Gần 8m ➔ 55m)
         local targetPos = Engine.State.CurrentTarget and Engine.State.CurrentTarget.Position or myPos
         local targetDir = (targetPos - myPos).Magnitude > 0.5 and (targetPos - myPos).Unit or Vector3.new(1, 0, 0)
         local perpDir = targetDir:Cross(Vector3.new(0, 1, 0)).Unit
         
-        -- Nhịp di chuyển lượn sóng 3D & Dịch chuyển bất ngờ ngẫu nhiên
-        local circleOffset = (perpDir * math.sin(now * 7) * 20) + (targetDir * math.cos(now * 5.5) * 16)
-        local verticalWave = Vector3.new(0, math.sin(now * 8) * 9, 0)
+        -- A. Dynamic Radius Oscillations (8 studs ➔ 55 studs)
+        local rangeWave = (math.sin(now * 3.1) * 0.5 + 0.5)
+        local dynamicDistance = 8 + (rangeWave * 47)
         
-        -- Dịch chuyển giật bước ngẫu nhiên (Sudden Blink Shift) mỗi 0.4 giây
+        -- B. Ultra Altitude Fluctuation (5 studs ➔ 42 studs)
+        local heightWave = math.sin(now * 6.2) * 18 + math.cos(now * 10.4) * 12
+        local altitudeOffset = Vector3.new(0, 15 + heightWave, 0)
+        
+        -- C. Multi-Axis Weaving & Diagonal Shifts
+        local leftRightStrafe = perpDir * (math.sin(now * 9.2) * dynamicDistance)
+        local foreAftPulsing = targetDir * (math.cos(now * 6.8) * (dynamicDistance * 0.85))
+        
+        -- D. Sudden Unpredictable Quantum Micro-Blinks (Mỗi 0.25s)
         local randomBlink = Vector3.zero
-        if math.floor(now * 2.5) % 2 == 0 then
+        if math.floor(now * 4.0) % 2 == 0 then
             randomBlink = Vector3.new(
-                math.sin(now * 19) * 22,
-                math.cos(now * 13) * 12,
-                math.cos(now * 23) * 22
+                math.sin(now * 29.5) * (dynamicDistance * 0.65),
+                math.cos(now * 21.3) * 14,
+                math.cos(now * 33.1) * (dynamicDistance * 0.65)
             )
         end
         
-        local continuousShiftVector = circleOffset + verticalWave + randomBlink
+        local continuousOmniShift = leftRightStrafe + foreAftPulsing + altitudeOffset + randomBlink
         
-        -- 3. EMERGENCY INSTANT IMPULSE DODGE (Né Khẩn Cấp Khi Có Đạn Bay Tới)
+        -- 3. GOD-MODE INSTANT TELEPORT DODGE (Né Tức Thời 40m - 90m Khi Đạn Bay Vào Tầm)
         if #projectiles > 0 and totalThreat >= 10 then
             local primaryProj = projectiles[1]
             local projDir = primaryProj.Vel.Magnitude > 1 and primaryProj.Vel.Unit or (myPos - primaryProj.Pos).Unit
-            local sideSign = (math.sin(now * 15) >= 0) and 1 or -1
+            local sideSign = (math.sin(now * 20) >= 0) and 1 or -1
             local perpEvade = projDir:Cross(Vector3.new(0, 1, 0)).Unit * sideSign
             
-            local evadeMagnitude = math.clamp((2.5 - primaryProj.TTI) * 50, 28, 65)
-            local verticalEvade = Vector3.new(0, (highestThreatTimeToImpact < 0.8) and 18 or 8, 0)
+            -- Lực né nhảy tức thì cực đại (40 studs ➔ 90 studs)
+            local evadeMagnitude = math.clamp((3.8 - primaryProj.TTI) * 65, 40, 90)
+            local verticalEvade = Vector3.new(0, (highestThreatTimeToImpact < 0.8) and 28 or 14, 0)
             
-            local impulseVector = (perpEvade * evadeMagnitude) + verticalEvade
+            local impulseVector = (perpEvade * evadeMagnitude) + verticalEvade + continuousOmniShift
             
-            -- Kiểm tra va chạm địa hình không để đâm vào tường
+            -- Kiểm tra địa hình 360 độ
             local testPos = myPos + impulseVector
             if not CheckLineOfSight(myPos, testPos) then
-                impulseVector = (-perpEvade * evadeMagnitude) + verticalEvade
+                impulseVector = (-perpEvade * evadeMagnitude) + verticalEvade + continuousOmniShift
             end
             
             self.DodgeAIState.ActiveVector = impulseVector
             self.DodgeAIState.LastDodgeDir = perpEvade
             self.DodgeAIState.LastDirectionTime = now
             
-            if highestThreatTimeToImpact < 1.0 and (now - self.LastActions.Dodge > 1.8) then
+            if highestThreatTimeToImpact < 1.2 and (now - self.LastActions.Dodge > 1.4) then
                 self.LastActions.Dodge = now
                 if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
-                    Engine.Modules.NotificationManager:Notify("OOF SMART EVADE", string.format("⚡ [AI EVADE VIP] Đảo vị trí & Né đạn %.1fm (TTI: %.2fs)!", evadeMagnitude, primaryProj.TTI), 1.2)
+                    Engine.Modules.NotificationManager:Notify("GOD-MODE DODGE ULTRA", string.format("🔥 [GOD DODGE] Né bứt tốc %.1fm - Đạn trượt 100%% (TTI: %.2fs)!", evadeMagnitude, primaryProj.TTI), 1.2)
                 end
             end
             
             return self.DodgeAIState.ActiveVector
         end
         
-        -- Khi không có đạn ➔ Trả về véc-tơ đảo vị trí liên tục (Thoát tầm nhắm đối thủ)
-        self.DodgeAIState.ActiveVector = continuousShiftVector
+        self.DodgeAIState.ActiveVector = continuousOmniShift
         return self.DodgeAIState.ActiveVector
     end,
     
@@ -1661,7 +1695,7 @@ Engine.Modules.FarmManager = {
         end)
         table.insert(Engine.State.FarmConnections, scanThread)
 
-        -- Quét né đạn chạy ngầm 0.15s / lần (KHÔNG chạy trên Heartbeat)
+        -- Quét né đạn chạy siêu tốc 0.04s / lần (GOD-MODE REFLEX 25 FPS)
         local dodgeThread = task.spawn(function()
             while Engine.Modules.ConfigManager.Settings.AutoFarm do
                 if Engine.Modules.ConfigManager.Settings.AutoDodge then
@@ -1673,7 +1707,7 @@ Engine.Modules.FarmManager = {
                 else
                     self.CachedDodgeVector = Vector3.zero
                 end
-                task.wait(0.15)
+                task.wait(0.04)
             end
         end)
         table.insert(Engine.State.FarmConnections, dodgeThread)
@@ -2467,8 +2501,8 @@ Engine.Modules.UIController = {
         self.MainFrame = Instance.new("Frame")
         self.MainFrame.Size = UDim2.new(0, 580, 0, 400)
         self.MainFrame.Position = UDim2.new(0.5, -290, 0.5, -200)
-        self.MainFrame.BackgroundColor3 = Color3.fromRGB(8, 12, 20)
-        self.MainFrame.BackgroundTransparency = 0.16
+        self.MainFrame.BackgroundColor3 = Color3.fromRGB(246, 250, 255)
+        self.MainFrame.BackgroundTransparency = 0.42
         self.MainFrame.Active = true
         self.MainFrame.Draggable = true
         self.MainFrame.ClipsDescendants = true
@@ -2537,18 +2571,18 @@ Engine.Modules.UIController = {
         authorLabel.Text = "👑 Owner: " .. Engine.Author .. "  |  VIP ENGINE 2026"
         authorLabel.Font = Enum.Font.GothamBold
         authorLabel.TextSize = 9.5
-        authorLabel.TextColor3 = Color3.fromRGB(0, 255, 180)
+        authorLabel.TextColor3 = Color3.fromRGB(0, 150, 220)
         authorLabel.TextXAlignment = Enum.TextXAlignment.Left
         authorLabel.Parent = topBar
 
         self.BtnTopLang = Instance.new("TextButton")
         self.BtnTopLang.Size = UDim2.new(0, 72, 0, 28)
         self.BtnTopLang.Position = UDim2.new(1, -262, 0, 15)
-        self.BtnTopLang.BackgroundColor3 = Color3.fromRGB(18, 26, 42)
+        self.BtnTopLang.BackgroundColor3 = Color3.fromRGB(230, 238, 252)
         self.BtnTopLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
         self.BtnTopLang.Font = Enum.Font.GothamBold
         self.BtnTopLang.TextSize = 11
-        self.BtnTopLang.TextColor3 = Color3.fromRGB(0, 255, 180)
+        self.BtnTopLang.TextColor3 = Color3.fromRGB(0, 140, 220)
         self.BtnTopLang.Parent = topBar
         Instance.new("UICorner", self.BtnTopLang).CornerRadius = UDim.new(0, 8)
         self:AddHoverAnim(self.BtnTopLang, Color3.fromRGB(18, 26, 42), Color3.fromRGB(28, 40, 64))
@@ -2676,8 +2710,8 @@ Engine.Modules.UIController = {
     CreateSectionHeader = function(self, parent, translationKey)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -10, 0, 30)
-        frame.BackgroundColor3 = Color3.fromRGB(16, 24, 40)
-        frame.BackgroundTransparency = 0.35
+        frame.BackgroundColor3 = Color3.fromRGB(228, 238, 252)
+        frame.BackgroundTransparency = 0.52
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
@@ -2694,7 +2728,7 @@ Engine.Modules.UIController = {
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = Engine.Modules.I18n:Get(translationKey)
-        label.TextColor3 = Color3.fromRGB(0, 240, 255)
+        label.TextColor3 = Color3.fromRGB(15, 25, 45)
         label.Font = Enum.Font.GothamBlack
         label.TextSize = 11
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -2708,8 +2742,8 @@ Engine.Modules.UIController = {
         local tabContainer = Instance.new("Frame")
         tabContainer.Size = UDim2.new(0, 150, 1, -20)
         tabContainer.Position = UDim2.new(0, 12, 0, 10)
-        tabContainer.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
-        tabContainer.BackgroundTransparency = 0.35
+        tabContainer.BackgroundColor3 = Color3.fromRGB(232, 240, 252)
+        tabContainer.BackgroundTransparency = 0.55
         tabContainer.Parent = parent
         Instance.new("UICorner", tabContainer).CornerRadius = UDim.new(0, 14)
 
@@ -2742,10 +2776,10 @@ Engine.Modules.UIController = {
         local function createTab(translationKey, first)
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, 0, 0, 36)
-            btn.BackgroundColor3 = first and Color3.fromRGB(0, 220, 255) or Color3.fromRGB(15, 21, 34)
+            btn.BackgroundColor3 = first and Color3.fromRGB(0, 180, 255) or Color3.fromRGB(240, 246, 255)
             btn.BackgroundTransparency = first and 0.85 or 1
             btn.Text = "  " .. Engine.Modules.I18n:Get(translationKey)
-            btn.TextColor3 = first and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(160, 175, 200)
+            btn.TextColor3 = first and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(45, 62, 88)
             btn.Font = Enum.Font.GothamBlack
             btn.TextSize = 11.5
             btn.TextXAlignment = Enum.TextXAlignment.Left
@@ -2776,16 +2810,16 @@ Engine.Modules.UIController = {
                 end
                 for _, b in pairs(tabButtons) do 
                     Engine.Services.TweenService:Create(b, TweenInfo.new(0.2), {
-                        TextColor3 = Color3.fromRGB(160, 175, 200),
+                        TextColor3 = Color3.fromRGB(45, 62, 88),
                         BackgroundTransparency = 1
                     }):Play() 
                 end
                 page.Visible = true
                 page.CanvasPosition = Vector2.new(0, 0)
                 Engine.Services.TweenService:Create(btn, TweenInfo.new(0.2), {
-                    TextColor3 = Color3.fromRGB(0, 240, 255),
-                    BackgroundColor3 = Color3.fromRGB(0, 220, 255),
-                    BackgroundTransparency = 0.85
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                    BackgroundColor3 = Color3.fromRGB(0, 180, 255),
+                    BackgroundTransparency = 0
                 }):Play()
                 table.insert(self.ChromaObjects, btn)
             end)
@@ -2991,14 +3025,14 @@ Engine.Modules.UIController = {
     CreateToggle = function(self, parent, translationKey, configKey, callback)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -10, 0, 44)
-        frame.BackgroundColor3 = Color3.fromRGB(15, 21, 34)
-        frame.BackgroundTransparency = 0.35
+        frame.BackgroundColor3 = Color3.fromRGB(238, 244, 254)
+        frame.BackgroundTransparency = 0.52
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
         local frameStroke = Instance.new("UIStroke")
         frameStroke.Thickness = 1
-        frameStroke.Color = Color3.fromRGB(0, 240, 255)
+        frameStroke.Color = Color3.fromRGB(205, 220, 242)
         frameStroke.Transparency = 0.85
         frameStroke.Parent = frame
         
@@ -3007,7 +3041,7 @@ Engine.Modules.UIController = {
         label.Position = UDim2.new(0, 14, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = Engine.Modules.I18n:Get(translationKey)
-        label.TextColor3 = Color3.fromRGB(235, 243, 255)
+        label.TextColor3 = Color3.fromRGB(18, 28, 48)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -3083,14 +3117,14 @@ Engine.Modules.UIController = {
     CreateSlider = function(self, parent, translationKey, min, max, configKey)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, -10, 0, 60)
-        frame.BackgroundColor3 = Color3.fromRGB(15, 21, 34)
-        frame.BackgroundTransparency = 0.35
+        frame.BackgroundColor3 = Color3.fromRGB(238, 244, 254)
+        frame.BackgroundTransparency = 0.52
         frame.Parent = parent
         Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 12)
 
         local frameStroke = Instance.new("UIStroke")
         frameStroke.Thickness = 1
-        frameStroke.Color = Color3.fromRGB(0, 240, 255)
+        frameStroke.Color = Color3.fromRGB(205, 220, 242)
         frameStroke.Transparency = 0.85
         frameStroke.Parent = frame
         
@@ -3100,7 +3134,7 @@ Engine.Modules.UIController = {
         label.Position = UDim2.new(0, 14, 0, 4)
         label.BackgroundTransparency = 1
         label.Text = Engine.Modules.I18n:Get(translationKey) .. ": " .. string.format("%.2f", default)
-        label.TextColor3 = Color3.fromRGB(235, 243, 255)
+        label.TextColor3 = Color3.fromRGB(18, 28, 48)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
