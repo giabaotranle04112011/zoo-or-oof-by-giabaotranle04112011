@@ -90,7 +90,8 @@ Engine.Services = {
     TweenService = game:GetService("TweenService"),
     VirtualUser = game:GetService("VirtualUser"),
     VirtualInputManager = game:GetService("VirtualInputManager"),
-    ReplicatedStorage = game:GetService("ReplicatedStorage")
+    ReplicatedStorage = game:GetService("ReplicatedStorage"),
+    Lighting = game:GetService("Lighting")
 }
 
 local LocalPlayer = Engine.Services.Players.LocalPlayer
@@ -106,7 +107,14 @@ Engine.Modules.ConfigManager = {
     Settings = {
         Aimbot = false, AimbotSmooth = 0.2, AimbotFOV = 250, WallCheck = true, Prediction = false, PredictionAmount = 0.13,
         Fly = false, FlySpeed = 120, Speed = false, SpeedValue = 20, Noclip = false, InfJump = false, HitboxSize = 4,
-        AutoAttack = true, AutoSkill = true, AutoMoney = true, AntiAFK = true, ShowHUD = true, FPSBooster = true,
+        AutoAttack = true, AutoSkill = true, AutoMoney = true,
+        LightingMode = "Normal", -- "Dark", "Light", "Fullbright", "Normal"
+        LightingBrightness = 2.5,
+        LightingClockTime = 14,
+        LightingFullbright = false,
+        EnableNotifications = true,
+        SilentMode = false,
+        UITheme = "Dark", -- "Dark" / "Light"
         AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 75, SmartMovement = true, AntiStuck = true,
         AutoDodge = true, DodgeRadius = 15, DodgeSpeed = 1.4,
         ForceZookeeper = true, SmartWallBypass = true, Language = "VN",
@@ -197,6 +205,12 @@ Engine.Modules.I18n = {
             TabLanguage = "🌐 Ngôn Ngữ (Language)",
             
             SecTeam = "🎯 CẤU HÌNH PHE & HỆ THỐNG",
+            SecWorldLighting = "☀️🌅🌙 THỜI GIAN & ÁNH SÁNG BẢN ĐỒ",
+            TimeDay = "☀️ Ban Sáng",
+            TimeSunset = "🌅 Hoàng Hôn",
+            TimeNight = "🌙 Buổi Tối",
+            TimeDefault = "🍃 Mặc Định",
+            SilentMode = "🔕 Chế độ Im Lặng (Silent Mode - Tắt mọi thông báo)",
             SecCombat = "⚡ COMBAT & SMART AIMBOT",
             SecFarm = "🤖 AUTO FARM & OOF MATRIX DODGE",
             SecMovement = "🚀 FLIGHT & MOVEMENT ENGINE",
@@ -206,6 +220,7 @@ Engine.Modules.I18n = {
             
             ForceZoo = "Ép phe Zookeeper 100%",
             ShowHUD = "Hiển thị HUD Hunter",
+            EnableNotifications = "🔔 Bật / Tắt Thông Báo (Notifications)",
             FPSBooster = "Tối ưu FPS (Fix Lag)",
             
             SmartAimbot = "Smart Aimbot [M]",
@@ -283,6 +298,12 @@ Engine.Modules.I18n = {
             TabLanguage = "🌐 Language (Ngôn Ngữ)",
             
             SecTeam = "🎯 TEAM & SYSTEM SETUP",
+            SecWorldLighting = "☀️🌅🌙 WORLD TIME & LIGHTING",
+            TimeDay = "☀️ Day",
+            TimeSunset = "🌅 Sunset",
+            TimeNight = "🌙 Night",
+            TimeDefault = "🍃 Default",
+            SilentMode = "🔕 Silent Mode (Silence All Notifications)",
             SecCombat = "⚡ COMBAT & SMART AIMBOT",
             SecFarm = "🤖 AUTO FARM & OOF MATRIX DODGE",
             SecMovement = "🚀 FLIGHT & MOVEMENT ENGINE",
@@ -292,6 +313,7 @@ Engine.Modules.I18n = {
             
             ForceZoo = "Force Zookeeper 100%",
             ShowHUD = "Show Hunter HUD",
+            EnableNotifications = "Enable Notifications",
             FPSBooster = "FPS Booster (Fix Lag)",
             
             SmartAimbot = "Smart Aimbot [M]",
@@ -364,43 +386,61 @@ Engine.Modules.LoadingScreen = {
         sg.ResetOnSpawn = false
         sg.Parent = coreGui
 
+        -- 🌌 Cyber Dark Background with Floating Particles
         local bg = Instance.new("Frame")
         bg.Size = UDim2.new(1, 0, 1, 0)
-        bg.BackgroundColor3 = Color3.fromRGB(6, 8, 14)
+        bg.BackgroundColor3 = Color3.fromRGB(6, 8, 15)
         bg.BackgroundTransparency = 0.05
         bg.Parent = sg
 
-        local glowRing = Instance.new("Frame")
-        glowRing.Size = UDim2.new(0, 480, 0, 280)
-        glowRing.Position = UDim2.new(0.5, -240, 0.5, -140)
-        glowRing.BackgroundColor3 = Color3.fromRGB(0, 240, 255)
-        glowRing.BackgroundTransparency = 0.92
-        glowRing.Parent = bg
-        Instance.new("UICorner", glowRing).CornerRadius = UDim.new(0, 24)
+        -- 💫 Floating Energy Particles Background System
+        local particles = {}
+        for i = 1, 24 do
+            local particle = Instance.new("Frame")
+            local pSize = math.random(4, 10)
+            particle.Size = UDim2.new(0, pSize, 0, pSize)
+            particle.Position = UDim2.new(math.random(5, 95) / 100, 0, math.random(10, 100) / 100, 0)
+            particle.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(0, 255, 170)
+            particle.BackgroundTransparency = math.random(40, 80) / 100
+            particle.Parent = bg
+            Instance.new("UICorner", particle).CornerRadius = UDim.new(1, 0)
+            table.insert(particles, {Obj = particle, Speed = math.random(15, 35) / 10, OrigX = particle.Position.X.Scale})
+        end
 
+        -- 🌀 Outer Hologram Pulsing Halo Ring
+        local outerHalo = Instance.new("Frame")
+        outerHalo.Size = UDim2.new(0, 510, 0, 290)
+        outerHalo.Position = UDim2.new(0.5, -255, 0.5, -145)
+        outerHalo.BackgroundColor3 = Color3.fromRGB(0, 220, 255)
+        outerHalo.BackgroundTransparency = 0.88
+        outerHalo.Parent = bg
+        Instance.new("UICorner", outerHalo).CornerRadius = UDim.new(0, 26)
+
+        -- 💎 Main Cyberpunk Glass VIP Card
         local card = Instance.new("Frame")
-        card.Size = UDim2.new(0, 460, 0, 260)
-        card.Position = UDim2.new(0.5, -230, 0.5, -130)
-        card.BackgroundColor3 = Color3.fromRGB(12, 16, 26)
-        card.BackgroundTransparency = 0.1
+        card.Size = UDim2.new(0, 480, 0, 270)
+        card.Position = UDim2.new(0.5, -240, 0.5, -135)
+        card.BackgroundColor3 = Color3.fromRGB(12, 16, 28)
+        card.BackgroundTransparency = 0.12
+        card.ClipsDescendants = true
         card.Parent = bg
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 20)
+        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 22)
 
         local stroke = Instance.new("UIStroke")
-        stroke.Thickness = 2.5
+        stroke.Thickness = 2.4
         stroke.Color = Color3.fromRGB(0, 240, 255)
         stroke.Parent = card
 
-        -- Hiển thị Logo bun.jpg trong Màn hình Loading
+        -- 👑 Header Logo Badge with Glowing Hologram Ring
         local logoAsset = Engine:GetLogoAsset()
-        local titleXOffset = 20
+        local titleXOffset = 25
         if logoAsset then
             local logoFrame = Instance.new("Frame")
-            logoFrame.Size = UDim2.new(0, 52, 0, 52)
-            logoFrame.Position = UDim2.new(0, 25, 0, 18)
-            logoFrame.BackgroundColor3 = Color3.fromRGB(20, 28, 45)
+            logoFrame.Size = UDim2.new(0, 56, 0, 56)
+            logoFrame.Position = UDim2.new(0, 24, 0, 20)
+            logoFrame.BackgroundColor3 = Color3.fromRGB(18, 25, 42)
             logoFrame.Parent = card
-            Instance.new("UICorner", logoFrame).CornerRadius = UDim.new(0, 12)
+            Instance.new("UICorner", logoFrame).CornerRadius = UDim.new(0, 14)
 
             local logoImg = Instance.new("ImageLabel")
             logoImg.Size = UDim2.new(1, 0, 1, 0)
@@ -408,42 +448,43 @@ Engine.Modules.LoadingScreen = {
             logoImg.Image = logoAsset
             logoImg.ScaleType = Enum.ScaleType.Crop
             logoImg.Parent = logoFrame
-            Instance.new("UICorner", logoImg).CornerRadius = UDim.new(0, 12)
+            Instance.new("UICorner", logoImg).CornerRadius = UDim.new(0, 14)
 
             local logoStroke = Instance.new("UIStroke")
-            logoStroke.Thickness = 1.5
+            logoStroke.Thickness = 1.8
             logoStroke.Color = Color3.fromRGB(0, 240, 255)
             logoStroke.Parent = logoFrame
-            
-            titleXOffset = 90
+
+            titleXOffset = 95
         end
 
         local title = Instance.new("TextLabel")
         title.Size = UDim2.new(1, - (titleXOffset + 20), 0, 30)
-        title.Position = UDim2.new(0, titleXOffset, 0, 18)
+        title.Position = UDim2.new(0, titleXOffset, 0, 20)
         title.BackgroundTransparency = 1
-        title.Text = "⚡ CLASS QUID VIP V8.5"
+        title.Text = "👑 CLASS QUID VIP V8.5"
         title.Font = Enum.Font.GothamBlack
         title.TextSize = 17
         title.TextColor3 = Color3.fromRGB(0, 240, 255)
-        title.TextXAlignment = (titleXOffset > 20) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+        title.TextXAlignment = (titleXOffset > 25) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
         title.Parent = card
 
         local sub = Instance.new("TextLabel")
         sub.Size = UDim2.new(1, - (titleXOffset + 20), 0, 20)
-        sub.Position = UDim2.new(0, titleXOffset, 0, 48)
+        sub.Position = UDim2.new(0, titleXOffset, 0, 50)
         sub.BackgroundTransparency = 1
-        sub.Text = "Owner: " .. Engine.Author .. " • Discord: discord.gg/rMJAhJwgW"
+        sub.Text = "Owner: " .. Engine.Author .. "  |  Class Quid Premium Engine"
         sub.Font = Enum.Font.GothamBold
         sub.TextSize = 10
         sub.TextColor3 = Color3.fromRGB(0, 255, 180)
-        sub.TextXAlignment = (titleXOffset > 20) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
+        sub.TextXAlignment = (titleXOffset > 25) and Enum.TextXAlignment.Left or Enum.TextXAlignment.Center
         sub.Parent = card
 
+        -- 📊 Neon Progress Bar Container
         local barBg = Instance.new("Frame")
-        barBg.Size = UDim2.new(0.88, 0, 0, 12)
-        barBg.Position = UDim2.new(0.06, 0, 0, 125)
-        barBg.BackgroundColor3 = Color3.fromRGB(22, 30, 48)
+        barBg.Size = UDim2.new(0.88, 0, 0, 14)
+        barBg.Position = UDim2.new(0.06, 0, 0, 130)
+        barBg.BackgroundColor3 = Color3.fromRGB(20, 28, 46)
         barBg.Parent = card
         Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
 
@@ -454,69 +495,112 @@ Engine.Modules.LoadingScreen = {
         Instance.new("UICorner", barFill).CornerRadius = UDim.new(1, 0)
 
         local barGlow = Instance.new("UIStroke")
-        barGlow.Thickness = 1.5
+        barGlow.Thickness = 1.8
         barGlow.Color = Color3.fromRGB(0, 255, 180)
-        barGlow.Transparency = 0.5
+        barGlow.Transparency = 0.3
         barGlow.Parent = barFill
 
+        -- Light Beam Scanner Moving Inside Bar
+        local lightScanner = Instance.new("Frame")
+        lightScanner.Size = UDim2.new(0.2, 0, 1, 0)
+        lightScanner.Position = UDim2.new(0, 0, 0, 0)
+        lightScanner.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        lightScanner.BackgroundTransparency = 0.5
+        lightScanner.Parent = barFill
+        Instance.new("UICorner", lightScanner).CornerRadius = UDim.new(1, 0)
+
         local percentLabel = Instance.new("TextLabel")
-        percentLabel.Size = UDim2.new(1, 0, 0, 22)
-        percentLabel.Position = UDim2.new(0, 0, 0, 148)
+        percentLabel.Size = UDim2.new(1, 0, 0, 24)
+        percentLabel.Position = UDim2.new(0, 0, 0, 154)
         percentLabel.BackgroundTransparency = 1
         percentLabel.Text = "0%"
         percentLabel.Font = Enum.Font.GothamBlack
-        percentLabel.TextSize = 14
+        percentLabel.TextSize = 15
         percentLabel.TextColor3 = Color3.fromRGB(0, 240, 255)
         percentLabel.Parent = card
 
         local statusLabel = Instance.new("TextLabel")
-        statusLabel.Size = UDim2.new(1, 0, 0, 22)
-        statusLabel.Position = UDim2.new(0, 0, 0, 182)
+        statusLabel.Size = UDim2.new(1, -40, 0, 22)
+        statusLabel.Position = UDim2.new(0, 20, 0, 192)
         statusLabel.BackgroundTransparency = 1
-        statusLabel.Text = "🚀 Khởi động Class Quid VIP Engine..."
+        statusLabel.Text = Engine.Modules.I18n:Get("LoadingStatus")
         statusLabel.Font = Enum.Font.GothamMedium
-        statusLabel.TextSize = 11
-        statusLabel.TextColor3 = Color3.fromRGB(170, 190, 220)
+        statusLabel.TextSize = 11.5
+        statusLabel.TextColor3 = Color3.fromRGB(180, 205, 235)
+        statusLabel.TextWrapped = true
         statusLabel.Parent = card
 
         local steps = {
-            {time = 0.1, text = "⚡ [1/5] Nạp Service & Cấu hình Class Quid Config..."},
-            {time = 0.25, text = "🚀 [2/5] Kích hoạt Engine Tối ưu hóa FPS & Fix Lag..."},
-            {time = 0.4, text = "🛡️ [3/5] Kích hoạt Smart Wall Bypass & Auto Hunter..."},
-            {time = 0.5, text = "🔑 [4/5] Kết nối Server Key getkeyfree24h.netlify.app..."},
-            {time = 0.6, text = "✨ [5/5] Nạp hoàn tất! Đang khởi chạy giao diện..."}
+            {time = 0.12, text = Engine.Modules.I18n:Get("Step1")},
+            {time = 0.28, text = Engine.Modules.I18n:Get("Step2")},
+            {time = 0.44, text = Engine.Modules.I18n:Get("Step3")},
+            {time = 0.60, text = Engine.Modules.I18n:Get("Step4")},
+            {time = 0.75, text = Engine.Modules.I18n:Get("Step5")}
         }
 
-        local totalDuration = 0.6
+        -- Bounce Entrance Anim
+        card.Size = UDim2.new(0, 420, 0, 230)
+        card.Position = UDim2.new(0.5, -210, 0.5, -115)
+        Engine.Services.TweenService:Create(card, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 480, 0, 270),
+            Position = UDim2.new(0.5, -240, 0.5, -135)
+        }):Play()
+
+        local totalDuration = 0.75
         local startTime = tick()
         Engine.Services.TweenService:Create(barFill, TweenInfo.new(totalDuration, Enum.EasingStyle.Linear), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+
+        local particleConnection
+        particleConnection = Engine.Services.RunService.RenderStepped:Connect(function(dt)
+            local now = tick()
+            stroke.Color = Color3.fromHSV((now * 0.4) % 1, 0.85, 1)
+            outerHalo.BackgroundColor3 = stroke.Color
+
+            -- Animate background particles floating up
+            for _, p in ipairs(particles) do
+                local newY = p.Obj.Position.Y.Scale - (p.Speed * dt * 0.08)
+                if newY < -0.05 then newY = 1.05 end
+                local sineWiggle = math.sin(now * 2 + p.Speed) * 0.015
+                p.Obj.Position = UDim2.new(p.OrigX + sineWiggle, 0, newY, 0)
+            end
+
+            -- Light beam scanner bounce
+            local scanPos = (math.sin(now * 5) + 1) / 2 * 0.8
+            lightScanner.Position = UDim2.new(scanPos, 0, 0, 0)
+        end)
 
         while tick() - startTime < totalDuration do
             local elapsed = tick() - startTime
             local progress = math.clamp(elapsed / totalDuration, 0, 1)
 
             percentLabel.Text = math.floor(progress * 100) .. "%"
-            stroke.Color = Color3.fromHSV((tick() * 2) % 1, 0.8, 1)
 
-            if elapsed < 0.15 then statusLabel.Text = steps[1].text
-            elseif elapsed < 0.3 then statusLabel.Text = steps[2].text
-            elseif elapsed < 0.45 then statusLabel.Text = steps[3].text
-            elseif elapsed < 0.55 then statusLabel.Text = steps[4].text
+            if elapsed < 0.18 then statusLabel.Text = steps[1].text
+            elseif elapsed < 0.35 then statusLabel.Text = steps[2].text
+            elseif elapsed < 0.52 then statusLabel.Text = steps[3].text
+            elseif elapsed < 0.68 then statusLabel.Text = steps[4].text
             else statusLabel.Text = steps[5].text
             end
 
-            task.wait(0.05)
+            task.wait(0.03)
         end
+
+        if particleConnection then particleConnection:Disconnect() end
 
         barFill.Size = UDim2.new(1, 0, 1, 0)
         percentLabel.Text = "100%"
-        task.wait(0.1)
+        statusLabel.Text = "✨ " .. Engine.Modules.I18n:Get("Step5")
+        task.wait(0.2)
 
-        Engine.Services.TweenService:Create(bg, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-        Engine.Services.TweenService:Create(card, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-        Engine.Services.TweenService:Create(glowRing, TweenInfo.new(0.4), {BackgroundTransparency = 1}):Play()
-        Engine.Services.TweenService:Create(stroke, TweenInfo.new(0.4), {Transparency = 1}):Play()
-        task.wait(0.4)
+        Engine.Services.TweenService:Create(bg, TweenInfo.new(0.35), {BackgroundTransparency = 1}):Play()
+        Engine.Services.TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 520, 0, 290),
+            Position = UDim2.new(0.5, -260, 0.5, -145),
+            BackgroundTransparency = 1
+        }):Play()
+        Engine.Services.TweenService:Create(outerHalo, TweenInfo.new(0.35), {BackgroundTransparency = 1}):Play()
+        Engine.Services.TweenService:Create(stroke, TweenInfo.new(0.35), {Transparency = 1}):Play()
+        task.wait(0.38)
         sg:Destroy()
     end
 }
@@ -1036,6 +1120,11 @@ Engine.Modules.NotificationManager = {
     end,
     
     Notify = function(self, title, text, duration)
+        if Engine.Modules.ConfigManager and Engine.Modules.ConfigManager.Settings then
+            if Engine.Modules.ConfigManager.Settings.EnableNotifications == false or Engine.Modules.ConfigManager.Settings.SilentMode == true then 
+                return 
+            end
+        end
         duration = duration or 3.5
         if not self.Container then self:Init() end
         
@@ -1171,6 +1260,26 @@ local function DeterminePlayerRole(plr)
             if rStr:find("zoo") then isZoo = true
             elseif rStr:find("oof") or rStr:find("animal") then isOof = true end
         end
+    end
+
+    if not isZoo and not isOof then
+        -- Inspection of Equipped or Backpack Tools
+        local function checkTools(container)
+            if not container then return end
+            for _, item in ipairs(container:GetChildren()) do
+                if item:IsA("Tool") then
+                    local iName = item.Name:lower()
+                    if iName:find("oof") or iName:find("claw") or iName:find("strike") or iName:find("paw") then
+                        isOof = true
+                    elseif iName:find("gun") or iName:find("rifle") or iName:find("tranq") or iName:find("net") or iName:find("zoo") or iName:find("taser") or iName:find("shotgun") then
+                        isZoo = true
+                    end
+                end
+            end
+        end
+        
+        checkTools(plr.Character)
+        if plr:FindFirstChild("Backpack") then checkTools(plr.Backpack) end
     end
     
     if isZoo then return "ZOOKEEPER" end
@@ -1356,7 +1465,125 @@ Engine.Modules.HunterHUD = {
     end
 }
 -- ==========================================
--- [8] FAST SCANNER & TARGETING
+-- [7.5] LIGHTING MANAGER (CHẾ ĐỘ SÁNG / TỐI)
+-- ==========================================
+Engine.Modules.LightingManager = {
+    OriginalSettings = nil,
+
+    Init = function(self)
+        if not self.OriginalSettings then
+            local lighting = game:GetService("Lighting")
+            self.OriginalSettings = {
+                Ambient = lighting.Ambient,
+                OutdoorAmbient = lighting.OutdoorAmbient,
+                Brightness = lighting.Brightness,
+                ClockTime = lighting.ClockTime,
+                GlobalShadows = lighting.GlobalShadows,
+                FogEnd = lighting.FogEnd
+            }
+        end
+    end,
+
+    ApplyMode = function(self, mode)
+        self:Init()
+        mode = mode or Engine.Modules.ConfigManager.Settings.LightingMode or "Normal"
+        Engine.Modules.ConfigManager.Settings.LightingMode = mode
+
+        local lighting = game:GetService("Lighting")
+        pcall(function()
+            if mode == "Light" then
+                -- Ban Sáng (Bright Daylight)
+                lighting.Ambient = Color3.fromRGB(210, 215, 230)
+                lighting.OutdoorAmbient = Color3.fromRGB(220, 225, 240)
+                lighting.Brightness = Engine.Modules.ConfigManager.Settings.LightingBrightness or 3.0
+                lighting.ClockTime = Engine.Modules.ConfigManager.Settings.LightingClockTime or 14
+                lighting.GlobalShadows = false
+                lighting.FogEnd = 9e9
+            elseif mode == "Sunset" then
+                -- Hoàng Hôn (Sunset)
+                lighting.Ambient = Color3.fromRGB(255, 140, 90)
+                lighting.OutdoorAmbient = Color3.fromRGB(210, 110, 70)
+                lighting.Brightness = 2.2
+                lighting.ClockTime = 17.8
+                lighting.GlobalShadows = true
+                lighting.FogEnd = 8000
+                lighting.FogColor = Color3.fromRGB(200, 90, 50)
+            elseif mode == "Dark" then
+                -- Buổi Tối (Night)
+                lighting.Ambient = Color3.fromRGB(22, 28, 45)
+                lighting.OutdoorAmbient = Color3.fromRGB(12, 16, 30)
+                lighting.Brightness = 0.6
+                lighting.ClockTime = 0 -- 12h đêm
+                lighting.GlobalShadows = true
+                lighting.FogEnd = 6000
+                lighting.FogColor = Color3.fromRGB(8, 12, 25)
+            elseif mode == "Fullbright" then
+                -- Siêu Sáng (Fullbright Xuyên Đêm)
+                lighting.Ambient = Color3.fromRGB(255, 255, 255)
+                lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+                lighting.Brightness = 4.0
+                lighting.GlobalShadows = false
+                lighting.FogEnd = 9e9
+            else
+                -- Mặc định (Normal)
+                lighting.Ambient = self.OriginalSettings.Ambient
+                lighting.OutdoorAmbient = self.OriginalSettings.OutdoorAmbient
+                lighting.Brightness = self.OriginalSettings.Brightness
+                lighting.ClockTime = self.OriginalSettings.ClockTime
+                lighting.GlobalShadows = self.OriginalSettings.GlobalShadows
+                lighting.FogEnd = self.OriginalSettings.FogEnd
+            end
+        end)
+    end
+}
+
+-- ==========================================
+-- [7.6] UI THEME MANAGER (MÀU GIAO DIỆN MENU SÁNG / TỐI)
+-- ==========================================
+Engine.Modules.UIThemeManager = {
+    ApplyTheme = function(self, theme)
+        theme = theme or Engine.Modules.ConfigManager.Settings.UITheme or "Dark"
+        Engine.Modules.ConfigManager.Settings.UITheme = theme
+
+        local ui = Engine.Modules.UIController
+        if not ui or not ui.MainFrame then return end
+
+        local isDark = (theme == "Dark")
+        local mainBg = isDark and Color3.fromRGB(14, 18, 28) or Color3.fromRGB(246, 250, 255)
+        local mainTrans = isDark and 0.18 or 0.38
+        local tabBg = isDark and Color3.fromRGB(22, 30, 46) or Color3.fromRGB(232, 240, 252)
+        local cardBg = isDark and Color3.fromRGB(20, 28, 44) or Color3.fromRGB(238, 244, 254)
+        local textCol = isDark and Color3.fromRGB(240, 248, 255) or Color3.fromRGB(18, 28, 48)
+
+        pcall(function()
+            ui.MainFrame.BackgroundColor3 = mainBg
+            ui.MainFrame.BackgroundTransparency = mainTrans
+            if ui.TabContainer then ui.TabContainer.BackgroundColor3 = tabBg end
+
+            for _, frame in ipairs(ui.ThemeFrames or {}) do
+                if frame and frame.Parent then frame.BackgroundColor3 = cardBg end
+            end
+            for _, label in ipairs(ui.ThemeLabels or {}) do
+                if label and label.Parent then label.TextColor3 = textCol end
+            end
+
+            if ui.BtnTopTheme then
+                ui.BtnTopTheme.Text = isDark and "🌙 Tối" or "☀️ Sáng"
+                ui.BtnTopTheme.TextColor3 = isDark and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(15, 25, 45)
+                ui.BtnTopTheme.BackgroundColor3 = isDark and Color3.fromRGB(22, 32, 52) or Color3.fromRGB(220, 235, 255)
+            end
+        end)
+    end
+}
+
+-- Khởi động Lighting Manager theo config hiện tại
+task.spawn(function()
+    task.wait(1)
+    Engine.Modules.LightingManager:ApplyMode()
+end)
+
+-- ==========================================
+-- [8] FAST SCANNER & TARGETING (SCAN MỖI 0.1 GIÂY)
 -- ==========================================
 
 local function FastScanPlayers()
@@ -1372,9 +1599,9 @@ local function FastScanPlayers()
             
             if hum and hum.Health > 0 and hrp then
                 if role == "OOF" then
-                    table.insert(Engine.Cache.Oofs, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr})
+                    table.insert(Engine.Cache.Oofs, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "OOF"})
                 elseif role == "ZOOKEEPER" then
-                    table.insert(Engine.Cache.Zookeepers, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr})
+                    table.insert(Engine.Cache.Zookeepers, {Model = plr.Character, Root = hrp, Humanoid = hum, Player = plr, Role = "ZOOKEEPER"})
                 end
             end
         end
@@ -1386,12 +1613,20 @@ local function FastScanPlayers()
             local hum = animal:FindFirstChildOfClass("Humanoid")
             local hrp = animal:FindFirstChild("HumanoidRootPart") or animal:FindFirstChild("Head")
             if hum and hum.Health > 0 and hrp then
-                table.insert(Engine.Cache.Oofs, {Model = animal, Root = hrp, Humanoid = hum})
-                table.insert(Engine.Cache.Animals, {Model = animal, Root = hrp, Humanoid = hum})
+                table.insert(Engine.Cache.Oofs, {Model = animal, Root = hrp, Humanoid = hum, Role = "OOF"})
+                table.insert(Engine.Cache.Animals, {Model = animal, Root = hrp, Humanoid = hum, Role = "OOF"})
             end
         end
     end
 end
+
+-- LOOPS QUÉT MỖI 0.1 GIÂY CHÍNH XÁC (10 HZ ULTRA FAST SCAN)
+task.spawn(function()
+    while true do
+        pcall(FastScanPlayers)
+        task.wait(0.1) -- Đúng 0.1 giây / 1 lần quét
+    end
+end)
 
 local function SlowScanPrompts()
     table.clear(Engine.Cache.Prompts)
@@ -1903,29 +2138,38 @@ end
 
 Engine.Modules.ESPManager = {
     Cache = {},
+    ChamsCache = {},
     TargetDrawings = nil,
     CachedAnimals = {},
     
     GetRoleColor = function(self, role, isAnimal)
-        if isAnimal then return Color3.fromRGB(255, 200, 0) end
+        if isAnimal then return Color3.fromRGB(255, 210, 0) end
         if role == "ZOOKEEPER" then
-            return Color3.fromRGB(255, 50, 50)
+            return Color3.fromRGB(255, 60, 60)
         elseif role == "OOF" then
-            return Color3.fromRGB(0, 150, 255)
+            return Color3.fromRGB(0, 180, 255)
         end
-        return Color3.fromRGB(0, 255, 120)
+        return Color3.fromRGB(0, 255, 140)
     end,
 
     CreateDrawings = function(self)
         return {
             BoxOutline = SafeDrawing("Square", {Thickness = 3, Color = Color3.fromRGB(0, 0, 0), Filled = false}),
-            Box = SafeDrawing("Square", {Thickness = 1.5, Filled = false}),
-            Name = SafeDrawing("Text", {Size = 12, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2}),
+            Box = SafeDrawing("Square", {Thickness = 1.6, Filled = false}),
+            
+            -- Neon Corners (4 Cặp nét cho Corner Box Style)
+            TopLeftH = SafeDrawing("Line", {Thickness = 2}), TopLeftV = SafeDrawing("Line", {Thickness = 2}),
+            TopRightH = SafeDrawing("Line", {Thickness = 2}), TopRightV = SafeDrawing("Line", {Thickness = 2}),
+            BotLeftH = SafeDrawing("Line", {Thickness = 2}), BotLeftV = SafeDrawing("Line", {Thickness = 2}),
+            BotRightH = SafeDrawing("Line", {Thickness = 2}), BotRightV = SafeDrawing("Line", {Thickness = 2}),
+
+            Name = SafeDrawing("Text", {Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2}),
             Distance = SafeDrawing("Text", {Size = 11, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2}),
             HealthOutline = SafeDrawing("Square", {Thickness = 1, Color = Color3.fromRGB(0, 0, 0), Filled = true}),
             HealthFill = SafeDrawing("Square", {Thickness = 1, Filled = true}),
-            Tracer = SafeDrawing("Line", {Thickness = 1.2}),
-            ArrowText = SafeDrawing("Text", {Size = 12, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0)})
+            HealthText = SafeDrawing("Text", {Size = 10, Center = false, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2}),
+            Tracer = SafeDrawing("Line", {Thickness = 1.4}),
+            ArrowText = SafeDrawing("Text", {Size = 13, Center = true, Outline = true, OutlineColor = Color3.fromRGB(0, 0, 0), Font = 2})
         }
     end,
 
@@ -1935,9 +2179,8 @@ Engine.Modules.ESPManager = {
             Label = SafeDrawing("Text", {Size = 13, Center = true, Outline = true, Color = Color3.fromRGB(255, 215, 0)})
         }
 
-        -- Quét ngầm danh sách Động vật 1.5s một lần (KHÔNG gây lag FPS)
         task.spawn(function()
-            while task.wait(1.5) do
+            while task.wait(1.0) do
                 local list = {}
                 local animalFolder = Engine.Services.Workspace:FindFirstChild("Gameplay") 
                     and Engine.Services.Workspace.Gameplay:FindFirstChild("Dynamic") 
@@ -1972,12 +2215,45 @@ Engine.Modules.ESPManager = {
         end
     end,
 
+    UpdateChams = function(self, model, role, isAnimal, enabled)
+        local key = tostring(model)
+        local highlight = self.ChamsCache[key]
+        if not enabled then
+            if highlight then
+                pcall(function() highlight:Destroy() end)
+                self.ChamsCache[key] = nil
+            end
+            return
+        end
+
+        local color = self:GetRoleColor(role, isAnimal)
+        if not highlight or not highlight.Parent then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "RBZoo_ChamsGlow"
+            highlight.Adornee = model
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.FillTransparency = 0.65
+            highlight.OutlineTransparency = 0.1
+            highlight.Parent = model
+            self.ChamsCache[key] = highlight
+        end
+        highlight.FillColor = color
+        highlight.OutlineColor = color
+    end,
+
     Update = function(self)
         local settings = Engine.Modules.ConfigManager.Settings
-        if not settings.ESP_Enabled then
+        local masterEnabled = settings.ESP_Enabled or settings.ESP
+        
+        if not masterEnabled then
             for objKey, drawings in pairs(self.Cache) do
                 for _, d in pairs(drawings) do pcall(function() d.Visible = false end) end
             end
+            for key, hl in pairs(self.ChamsCache) do
+                pcall(function() hl:Destroy() end)
+            end
+            table.clear(self.ChamsCache)
+
             if self.TargetDrawings then
                 pcall(function() self.TargetDrawings.Ring.Visible = false end)
                 pcall(function() self.TargetDrawings.Label.Visible = false end)
@@ -1999,7 +2275,7 @@ Engine.Modules.ESPManager = {
             if not hum or hum.Health <= 0 or not hrp then return end
 
             local dist = (hrp.Position - myPos).Magnitude
-            if dist > (settings.ESP_MaxDistance or 1500) then return end
+            if dist > (settings.ESP_MaxDistance or 1800) then return end
 
             local filter = settings.ESP_Filter or "All"
             if filter == "OOF Only" and role ~= "OOF" and not isAnimal then return end
@@ -2011,6 +2287,9 @@ Engine.Modules.ESPManager = {
             pcall(function() key = model:GetDebugId() end)
             activeKeys[key] = true
 
+            -- Update Highlight Chams
+            self:UpdateChams(model, role, isAnimal, settings.ESPChams or settings.ESP_Chams)
+
             local drawings = self.Cache[key]
             if not drawings then
                 drawings = self:CreateDrawings()
@@ -2020,112 +2299,131 @@ Engine.Modules.ESPManager = {
             local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
             local roleColor = self:GetRoleColor(role, isAnimal)
 
-            if onScreen then
+            -- 🛡️ UI Overlap Protection: Hide ESP drawings if they fall behind open UI Menu
+            local isBehindUI = false
+            local uiFrame = Engine.Modules.UIController and Engine.Modules.UIController.MainFrame
+            if uiFrame and uiFrame.Visible then
+                local absPos = uiFrame.AbsolutePosition
+                local absSize = uiFrame.AbsoluteSize
+                if screenPos.X >= (absPos.X - 15) and screenPos.X <= (absPos.X + absSize.X + 15)
+                   and screenPos.Y >= (absPos.Y - 15) and screenPos.Y <= (absPos.Y + absSize.Y + 15) then
+                    isBehindUI = true
+                end
+            end
+
+            if onScreen and not isBehindUI then
                 pcall(function() drawings.ArrowText.Visible = false end)
 
                 local head = model:FindFirstChild("Head")
-                local topPos = head and (head.Position + Vector3.new(0, 1.2, 0)) or (hrp.Position + Vector3.new(0, 3, 0))
-                local bottomPos = hrp.Position - Vector3.new(0, 3, 0)
+                local topPos = head and (head.Position + Vector3.new(0, 1.3, 0)) or (hrp.Position + Vector3.new(0, 3.2, 0))
+                local bottomPos = hrp.Position - Vector3.new(0, 3.2, 0)
                 
                 local topScreen = Camera:WorldToViewportPoint(topPos)
                 local bottomScreen = Camera:WorldToViewportPoint(bottomPos)
                 
                 local boxHeight = math.abs(bottomScreen.Y - topScreen.Y)
-                local boxWidth = boxHeight * 0.65
+                local boxWidth = boxHeight * 0.68
                 local boxPos = Vector2.new(screenPos.X - boxWidth / 2, topScreen.Y)
 
-                if settings.ESP_Box2D then
+                -- Render Corner Box Neon
+                if settings.ESP_Box2D or settings.ESPBox then
                     pcall(function()
-                        drawings.BoxOutline.Size = Vector2.new(boxWidth, boxHeight)
-                        drawings.BoxOutline.Position = boxPos
-                        drawings.BoxOutline.Color = Color3.fromRGB(0, 0, 0)
-                        drawings.BoxOutline.Thickness = 3
-                        drawings.BoxOutline.Filled = false
-                        drawings.BoxOutline.Visible = true
+                        local cornerLen = math.clamp(boxWidth * 0.25, 4, 15)
 
-                        drawings.Box.Size = Vector2.new(boxWidth, boxHeight)
-                        drawings.Box.Position = boxPos
-                        drawings.Box.Color = roleColor
-                        drawings.Box.Thickness = 1.5
-                        drawings.Box.Filled = false
-                        drawings.Box.Visible = true
-                    end)
-                else
-                    pcall(function()
+                        drawings.TopLeftH.From = boxPos drawings.TopLeftH.To = Vector2.new(boxPos.X + cornerLen, boxPos.Y)
+                        drawings.TopLeftV.From = boxPos drawings.TopLeftV.To = Vector2.new(boxPos.X, boxPos.Y + cornerLen)
+                        
+                        drawings.TopRightH.From = Vector2.new(boxPos.X + boxWidth, boxPos.Y) drawings.TopRightH.To = Vector2.new(boxPos.X + boxWidth - cornerLen, boxPos.Y)
+                        drawings.TopRightV.From = Vector2.new(boxPos.X + boxWidth, boxPos.Y) drawings.TopRightV.To = Vector2.new(boxPos.X + boxWidth, boxPos.Y + cornerLen)
+
+                        drawings.BotLeftH.From = Vector2.new(boxPos.X, boxPos.Y + boxHeight) drawings.BotLeftH.To = Vector2.new(boxPos.X + cornerLen, boxPos.Y + boxHeight)
+                        drawings.BotLeftV.From = Vector2.new(boxPos.X, boxPos.Y + boxHeight) drawings.BotLeftV.To = Vector2.new(boxPos.X, boxPos.Y + boxHeight - cornerLen)
+
+                        drawings.BotRightH.From = Vector2.new(boxPos.X + boxWidth, boxPos.Y + boxHeight) drawings.BotRightH.To = Vector2.new(boxPos.X + boxWidth - cornerLen, boxPos.Y + boxHeight)
+                        drawings.BotRightV.From = Vector2.new(boxPos.X + boxWidth, boxPos.Y + boxHeight) drawings.BotRightV.To = Vector2.new(boxPos.X + boxWidth, boxPos.Y + boxHeight - cornerLen)
+
+                        local cornerList = {
+                            drawings.TopLeftH, drawings.TopLeftV, drawings.TopRightH, drawings.TopRightV,
+                            drawings.BotLeftH, drawings.BotLeftV, drawings.BotRightH, drawings.BotRightV
+                        }
+                        for _, lineObj in ipairs(cornerList) do
+                            lineObj.Color = roleColor
+                            lineObj.Visible = true
+                        end
                         drawings.BoxOutline.Visible = false
                         drawings.Box.Visible = false
                     end)
+                else
+                    pcall(function()
+                        local cornerList = {
+                            drawings.TopLeftH, drawings.TopLeftV, drawings.TopRightH, drawings.TopRightV,
+                            drawings.BotLeftH, drawings.BotLeftV, drawings.BotRightH, drawings.BotRightV,
+                            drawings.BoxOutline, drawings.Box
+                        }
+                        for _, obj in ipairs(cornerList) do obj.Visible = false end
+                    end)
                 end
 
-                if settings.ESP_Name then
+                if settings.ESP_Name or settings.ESPName then
                     pcall(function()
-                        drawings.Name.Text = string.format("[%s] %s", isAnimal and "ANIMAL" or role, name)
+                        local tagText = isAnimal and "[🐾 ANIMAL]" or (role == "ZOOKEEPER" and "[🔴 ZOO]" or (role == "OOF" and "[🔵 OOF]" or "[🟢 HUMAN]"))
+                        drawings.Name.Text = string.format("%s %s", tagText, name)
                         drawings.Name.Position = Vector2.new(screenPos.X, boxPos.Y - 16)
                         drawings.Name.Color = roleColor
-                        drawings.Name.Size = 12
-                        drawings.Name.Center = true
-                        drawings.Name.Outline = true
                         drawings.Name.Visible = true
                     end)
                 else
                     pcall(function() drawings.Name.Visible = false end)
                 end
 
-                if settings.ESP_Distance then
+                if settings.ESP_Distance or settings.ESPDistance then
                     pcall(function()
                         drawings.Distance.Text = string.format("%d studs", math.floor(dist))
-                        drawings.Distance.Position = Vector2.new(screenPos.X, boxPos.Y + boxHeight + 2)
-                        drawings.Distance.Color = Color3.fromRGB(220, 220, 220)
-                        drawings.Distance.Size = 11
-                        drawings.Distance.Center = true
-                        drawings.Distance.Outline = true
+                        drawings.Distance.Position = Vector2.new(screenPos.X, boxPos.Y + boxHeight + 3)
+                        drawings.Distance.Color = Color3.fromRGB(225, 235, 245)
                         drawings.Distance.Visible = true
                     end)
                 else
                     pcall(function() drawings.Distance.Visible = false end)
                 end
 
-                if settings.ESP_HealthBar then
+                if settings.ESP_HealthBar or settings.ESPHealth then
                     pcall(function()
-                        local hpPercent = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
+                        local hpPercent = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
                         local barWidth = 4
-                        local barPos = Vector2.new(boxPos.X - barWidth - 4, boxPos.Y)
+                        local barPos = Vector2.new(boxPos.X - barWidth - 5, boxPos.Y)
                         
                         drawings.HealthOutline.Size = Vector2.new(barWidth, boxHeight)
                         drawings.HealthOutline.Position = barPos
                         drawings.HealthOutline.Color = Color3.fromRGB(0, 0, 0)
-                        drawings.HealthOutline.Thickness = 1
-                        drawings.HealthOutline.Filled = true
                         drawings.HealthOutline.Visible = true
 
                         local fillHeight = boxHeight * hpPercent
                         drawings.HealthFill.Size = Vector2.new(barWidth - 2, fillHeight)
                         drawings.HealthFill.Position = Vector2.new(barPos.X + 1, barPos.Y + (boxHeight - fillHeight))
-                        drawings.HealthFill.Color = Color3.fromRGB(255, 0, 0):Lerp(Color3.fromRGB(0, 255, 100), hpPercent)
-                        drawings.HealthFill.Thickness = 1
-                        drawings.HealthFill.Filled = true
+                        drawings.HealthFill.Color = Color3.fromRGB(255, 40, 40):Lerp(Color3.fromRGB(0, 255, 120), hpPercent)
                         drawings.HealthFill.Visible = true
+
+                        drawings.HealthText.Text = string.format("%d%%", math.floor(hpPercent * 100))
+                        drawings.HealthText.Position = Vector2.new(barPos.X - 26, barPos.Y + (boxHeight - fillHeight) - 6)
+                        drawings.HealthText.Color = drawings.HealthFill.Color
+                        drawings.HealthText.Visible = true
                     end)
                 else
                     pcall(function()
                         drawings.HealthOutline.Visible = false
                         drawings.HealthFill.Visible = false
+                        drawings.HealthText.Visible = false
                     end)
                 end
 
-                if settings.ESP_Tracer then
+                if settings.ESP_Tracer or settings.ESPTracers then
                     pcall(function()
                         local viewportSize = Camera.ViewportSize
                         local startPos = Vector2.new(viewportSize.X / 2, viewportSize.Y)
-                        if settings.ESP_TracerMode == "Center" then
-                            startPos = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-                        elseif settings.ESP_TracerMode == "Top" then
-                            startPos = Vector2.new(viewportSize.X / 2, 0)
-                        end
                         drawings.Tracer.From = startPos
                         drawings.Tracer.To = Vector2.new(screenPos.X, boxPos.Y + boxHeight)
                         drawings.Tracer.Color = roleColor
-                        drawings.Tracer.Thickness = 1.2
                         drawings.Tracer.Visible = true
                     end)
                 else
@@ -2133,30 +2431,27 @@ Engine.Modules.ESPManager = {
                 end
             else
                 pcall(function()
-                    drawings.BoxOutline.Visible = false
-                    drawings.Box.Visible = false
-                    drawings.Name.Visible = false
-                    drawings.Distance.Visible = false
-                    drawings.HealthOutline.Visible = false
-                    drawings.HealthFill.Visible = false
-                    drawings.Tracer.Visible = false
+                    local hideList = {
+                        drawings.TopLeftH, drawings.TopLeftV, drawings.TopRightH, drawings.TopRightV,
+                        drawings.BotLeftH, drawings.BotLeftV, drawings.BotRightH, drawings.BotRightV,
+                        drawings.BoxOutline, drawings.Box, drawings.Name, drawings.Distance,
+                        drawings.HealthOutline, drawings.HealthFill, drawings.HealthText, drawings.Tracer
+                    }
+                    for _, obj in ipairs(hideList) do obj.Visible = false end
                 end)
 
-                if settings.ESP_OffscreenArrow then
+                if settings.ESP_OffscreenArrow or settings.ESPArrows then
                     pcall(function()
                         local screenCenter = Camera.ViewportSize / 2
                         local objectSpace = Camera.CFrame:PointToObjectSpace(hrp.Position)
                         local dir = Vector2.new(-objectSpace.X, objectSpace.Z).Unit
                         
-                        local margin = 60
+                        local margin = 65
                         local arrowPos = screenCenter + dir * (math.min(screenCenter.X, screenCenter.Y) - margin)
 
-                        drawings.ArrowText.Text = string.format("▲ %d m", math.floor(dist))
+                        drawings.ArrowText.Text = string.format("▲ %d studs", math.floor(dist))
                         drawings.ArrowText.Position = arrowPos
                         drawings.ArrowText.Color = roleColor
-                        drawings.ArrowText.Size = 12
-                        drawings.ArrowText.Center = true
-                        drawings.ArrowText.Outline = true
                         drawings.ArrowText.Visible = true
                     end)
                 else
@@ -2426,6 +2721,8 @@ Engine.Modules.UIController = {
     end,
 
     Init = function(self)
+        self.ThemeFrames = {}
+        self.ThemeLabels = {}
         local coreGui = LocalPlayer:WaitForChild("PlayerGui")
         local sg = Instance.new("ScreenGui")
         sg.Name = "RBZoo_V8_UI_LiquidGlass"
@@ -2695,7 +2992,7 @@ Engine.Modules.UIController = {
         end)
 
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, -(titleLeftPos + 275), 0, 26)
+        title.Size = UDim2.new(1, -(titleLeftPos + 330), 0, 26)
         title.Position = UDim2.new(0, titleLeftPos, 0, 8)
         title.BackgroundTransparency = 1
         title.Text = "⚡ CLASS QUID VIP • V8.5"
@@ -2706,7 +3003,7 @@ Engine.Modules.UIController = {
         table.insert(self.ChromaObjects, title)
 
         local authorLabel = Instance.new("TextLabel")
-        authorLabel.Size = UDim2.new(1, -(titleLeftPos + 275), 0, 16)
+        authorLabel.Size = UDim2.new(1, -(titleLeftPos + 330), 0, 16)
         authorLabel.Position = UDim2.new(0, titleLeftPos, 0, 32)
         authorLabel.BackgroundTransparency = 1
         authorLabel.Text = "👑 Owner: " .. Engine.Author .. "  |  VIP ENGINE 2026"
@@ -2717,8 +3014,8 @@ Engine.Modules.UIController = {
         authorLabel.Parent = topBar
 
         self.BtnTopLang = Instance.new("TextButton")
-        self.BtnTopLang.Size = UDim2.new(0, 72, 0, 28)
-        self.BtnTopLang.Position = UDim2.new(1, -262, 0, 15)
+        self.BtnTopLang.Size = UDim2.new(0, 66, 0, 28)
+        self.BtnTopLang.Position = UDim2.new(1, -320, 0, 15)
         self.BtnTopLang.BackgroundColor3 = Color3.fromRGB(230, 238, 252)
         self.BtnTopLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
         self.BtnTopLang.Font = Enum.Font.GothamBold
@@ -2737,8 +3034,8 @@ Engine.Modules.UIController = {
         end)
 
         local btnTopDiscord = Instance.new("TextButton")
-        btnTopDiscord.Size = UDim2.new(0, 85, 0, 28)
-        btnTopDiscord.Position = UDim2.new(1, -185, 0, 15)
+        btnTopDiscord.Size = UDim2.new(0, 80, 0, 28)
+        btnTopDiscord.Position = UDim2.new(1, -248, 0, 15)
         btnTopDiscord.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
         btnTopDiscord.Text = "💬 Discord"
         btnTopDiscord.Font = Enum.Font.GothamBold
@@ -2751,9 +3048,33 @@ Engine.Modules.UIController = {
             Engine.Modules.KeySystem:JoinDiscord()
         end)
 
+        -- Nút Chuyển Đổi Màu Giao Diện Menu (UI Theme: Dark / Light) đặt kế bên Get Key
+        local isDarkTheme = (Engine.Modules.ConfigManager.Settings.UITheme == "Dark")
+        self.BtnTopTheme = Instance.new("TextButton")
+        self.BtnTopTheme.Size = UDim2.new(0, 66, 0, 28)
+        self.BtnTopTheme.Position = UDim2.new(1, -162, 0, 15)
+        self.BtnTopTheme.BackgroundColor3 = isDarkTheme and Color3.fromRGB(22, 32, 52) or Color3.fromRGB(220, 235, 255)
+        self.BtnTopTheme.Text = isDarkTheme and "🌙 Tối" or "☀️ Sáng"
+        self.BtnTopTheme.Font = Enum.Font.GothamBold
+        self.BtnTopTheme.TextSize = 11
+        self.BtnTopTheme.TextColor3 = isDarkTheme and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(15, 25, 45)
+        self.BtnTopTheme.Parent = topBar
+        Instance.new("UICorner", self.BtnTopTheme).CornerRadius = UDim.new(0, 8)
+        self:AddHoverAnim(self.BtnTopTheme, Color3.fromRGB(22, 32, 52), Color3.fromRGB(34, 52, 82))
+        
+        self.BtnTopTheme.MouseButton1Click:Connect(function()
+            local currTheme = Engine.Modules.ConfigManager.Settings.UITheme or "Dark"
+            local nextTheme = (currTheme == "Dark") and "Light" or "Dark"
+            Engine.Modules.UIThemeManager:ApplyTheme(nextTheme)
+            Engine.Modules.ConfigManager:Save()
+            if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
+                Engine.Modules.NotificationManager:Notify("UI Theme", (nextTheme == "Dark") and "🌙 Đã chuyển Giao diện Menu sang Chế Độ Tối!" or "☀️ Đã chuyển Giao diện Menu sang Chế Độ Sáng!", 2.5)
+            end
+        end)
+
         local btnTopGetKey = Instance.new("TextButton")
-        btnTopGetKey.Size = UDim2.new(0, 85, 0, 28)
-        btnTopGetKey.Position = UDim2.new(1, -95, 0, 15)
+        btnTopGetKey.Size = UDim2.new(0, 80, 0, 28)
+        btnTopGetKey.Position = UDim2.new(1, -90, 0, 15)
         btnTopGetKey.BackgroundColor3 = Color3.fromRGB(22, 35, 56)
         btnTopGetKey.Text = "🌐 Get Key"
         btnTopGetKey.Font = Enum.Font.GothamBold
@@ -2983,9 +3304,66 @@ Engine.Modules.UIController = {
             if v then Engine.Modules.TeamForce:TryForceZoo() end
         end)
         self:CreateToggle(pageForce, "ShowHUD", "ShowHUD")
+        self:CreateToggle(pageForce, "EnableNotifications", "EnableNotifications")
+        self:CreateToggle(pageForce, "SilentMode", "SilentMode")
         self:CreateToggle(pageForce, "FPSBooster", "FPSBooster", function(v)
             if v then Engine.Modules.PerformanceBooster:Init() end
         end)
+        
+        -- Phần Thời Gian & Ánh Sáng Bản Đồ (World Lighting: Ban Sáng, Hoàng Hôn, Buổi Tối, Mặc Định)
+        local worldLightHeader = Instance.new("Frame")
+        worldLightHeader.Size = UDim2.new(1, -10, 0, 30)
+        worldLightHeader.BackgroundColor3 = Color3.fromRGB(228, 238, 252)
+        worldLightHeader.BackgroundTransparency = 0.52
+        worldLightHeader.Parent = pageForce
+        Instance.new("UICorner", worldLightHeader).CornerRadius = UDim.new(0, 8)
+        if self.ThemeFrames then table.insert(self.ThemeFrames, worldLightHeader) end
+
+        local worldLightLabel = Instance.new("TextLabel")
+        worldLightLabel.Size = UDim2.new(1, -20, 1, 0)
+        worldLightLabel.Position = UDim2.new(0, 14, 0, 0)
+        worldLightLabel.BackgroundTransparency = 1
+        worldLightLabel.Text = Engine.Modules.I18n:Get("SecWorldLighting")
+        worldLightLabel.TextColor3 = Color3.fromRGB(15, 25, 45)
+        worldLightLabel.Font = Enum.Font.GothamBlack
+        worldLightLabel.TextSize = 11
+        worldLightLabel.TextXAlignment = Enum.TextXAlignment.Left
+        worldLightLabel.Parent = worldLightHeader
+        if self.ThemeLabels then table.insert(self.ThemeLabels, worldLightLabel) end
+        self:RegisterLabel(worldLightLabel, "SecWorldLighting")
+
+        local btnLightContainer = Instance.new("Frame")
+        btnLightContainer.Size = UDim2.new(1, -10, 0, 42)
+        btnLightContainer.BackgroundTransparency = 1
+        btnLightContainer.Parent = pageForce
+
+        local function createTimeBtn(keyName, posScale, widthScale, bgCol, textCol, modeName, notifyMsg)
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(widthScale, -3, 1, 0)
+            btn.Position = UDim2.new(posScale, 0, 0, 0)
+            btn.BackgroundColor3 = bgCol
+            btn.Text = Engine.Modules.I18n:Get(keyName)
+            btn.Font = Enum.Font.GothamBold
+            btn.TextSize = 10.5
+            btn.TextColor3 = textCol
+            btn.Parent = btnLightContainer
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+            self:AddHoverAnim(btn, bgCol, Color3.fromRGB(math.clamp(math.floor(bgCol.R*255)+20,0,255), math.clamp(math.floor(bgCol.G*255)+20,0,255), math.clamp(math.floor(bgCol.B*255)+20,0,255)))
+            self:RegisterLabel(btn, keyName)
+
+            btn.MouseButton1Click:Connect(function()
+                Engine.Modules.LightingManager:ApplyMode(modeName)
+                Engine.Modules.ConfigManager:Save()
+                if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
+                    Engine.Modules.NotificationManager:Notify("World Time", notifyMsg, 2.5)
+                end
+            end)
+        end
+
+        createTimeBtn("TimeDay", 0, 0.24, Color3.fromRGB(220, 235, 255), Color3.fromRGB(15, 25, 45), "Light", "☀️ Đã chuyển sang Thời Gian Ban Sáng!")
+        createTimeBtn("TimeSunset", 0.25, 0.24, Color3.fromRGB(255, 140, 90), Color3.fromRGB(255, 255, 255), "Sunset", "🌅 Đã chuyển sang Thời Gian Hoàng Hôn!")
+        createTimeBtn("TimeNight", 0.50, 0.24, Color3.fromRGB(22, 32, 52), Color3.fromRGB(0, 240, 255), "Dark", "🌙 Đã chuyển sang Thời Gian Buổi Tối!")
+        createTimeBtn("TimeDefault", 0.75, 0.24, Color3.fromRGB(30, 45, 65), Color3.fromRGB(0, 255, 180), "Normal", "🍃 Đã khôi phục Thời Gian Mặc Định!")
         
         self:CreateSectionHeader(pageCombat, "SecCombat")
         self:CreateToggle(pageCombat, "SmartAimbot", "Aimbot")
@@ -3189,6 +3567,8 @@ Engine.Modules.UIController = {
         label.Parent = frame
         
         self:RegisterLabel(label, translationKey)
+        if self.ThemeFrames then table.insert(self.ThemeFrames, frame) end
+        if self.ThemeLabels then table.insert(self.ThemeLabels, label) end
         
         local toggleBtn = Instance.new("TextButton")
         local isON = Engine.Modules.ConfigManager.Settings[configKey]
@@ -3348,6 +3728,9 @@ Engine.BootAfterKey = function(self)
     self.Modules.NotificationManager:Init()
     self.Modules.HunterHUD:Init()
     self.Modules.UIController:Init()
+    if self.Modules.UIThemeManager then
+        self.Modules.UIThemeManager:ApplyTheme()
+    end
     self.Modules.TeamForce:Init()
     self.Modules.ESPManager:Init()
     self.Status = "Running"
