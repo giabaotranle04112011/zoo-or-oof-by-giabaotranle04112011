@@ -10,8 +10,6 @@ local Engine = {
     Modules = {},
     Cache = { Animals = {}, Zookeepers = {}, Oofs = {}, Prompts = {}, LastScan = 0, TotalKills = 0 },
     State = { CurrentRole = "NEUTRAL", CurrentTarget = nil, TargetModel = nil, FarmConnections = {} },
-    Connections = {},
-    Threads = {},
     Status = "Booting",
     Author = "Trần Lê Gia Bảo",
     
@@ -19,20 +17,6 @@ local Engine = {
     
     CachedLogoAsset = nil,
     IsFetchingLogo = false,
-    
-    AddConnection = function(self, conn)
-        if conn then
-            table.insert(self.Connections, conn)
-        end
-        return conn
-    end,
-
-    AddThread = function(self, th)
-        if th then
-            table.insert(self.Threads, th)
-        end
-        return th
-    end,
     
     GetLogoAsset = function(self)
         if self.CachedLogoAsset then
@@ -94,32 +78,6 @@ local function CleanStr(str)
     return str:upper()
 end
 
--- Hàm giải mã nội bộ (XOR obfuscation — ẩn mật khẩu khỏi plain text)
-local function _XD(s, k)
-    return (s:gsub(".", function(c) return string.char(bit32.bxor(string.byte(c), k)) end))
-end
-
--- Hàm tạo ScreenGui an toàn (Tự động chống ghi hình / StreamProof & Anti-Detect qua gethui / protect_gui)
-local function SafeCreateScreenGui(name)
-    local sg = Instance.new("ScreenGui")
-    sg.Name = name
-    sg.ResetOnSpawn = false
-    
-    pcall(function()
-        if syn and syn.protect_gui then
-            syn.protect_gui(sg)
-        elseif protectgui then
-            protectgui(sg)
-        elseif protect_gui then
-            protect_gui(sg)
-        end
-    end)
-    
-    local parentObj = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
-    sg.Parent = parentObj
-    return sg
-end
-
 -- ==========================================
 -- [1] SERVICES & GLOBALS
 -- ==========================================
@@ -156,9 +114,6 @@ Engine.Modules.ConfigManager = {
         LightingFullbright = false,
         EnableNotifications = true,
         SilentMode = false,
-        StreamerMode = false, -- Chế độ Quay Video / Anti-Screen Record (Ẩn Menu & Visuals khi quay màn hình)
-        StreamerHideESP = true,
-        StreamerHideHUD = true,
         UITheme = "Dark", -- "Dark" / "Light"
         AutoFarm = false, AutoFarmHeight = 700, AutoFarmSpeed = 75, SmartMovement = true, AntiStuck = true,
         AutoDodge = true, DodgeRadius = 15, DodgeSpeed = 1.4,
@@ -268,13 +223,6 @@ Engine.Modules.I18n = {
             EnableNotifications = "🔔 Bật / Tắt Thông Báo (Notifications)",
             FPSBooster = "Tối ưu FPS (Fix Lag)",
             
-            SecStreamer = "🎥 CHẾ ĐỘ QUAY VIDEO & CHỐNG LỘ (STREAMER)",
-            StreamerMode = "🎥 Chế Độ Quay Video (Ẩn Menu & Visuals)",
-            StreamerHideESP = "👁️ Ẩn toàn bộ ESP khi quay video",
-            StreamerHideHUD = "📊 Ẩn Hunter HUD khi quay video",
-            StreamerDesc = "Chế độ quay video: Khi bật, toàn bộ Menu, ESP, HUD và Thông báo sẽ ẩn hoàn toàn để video siêu sạch như Pro. Các chức năng hack (Aimbot, Farm, Fly, Speed) vẫn chạy 100% ngầm!",
-            StreamerSecretHint = "💡 Chạm góc trên cùng bên trái màn hình hoặc bấm [RightShift] để bật/tắt Menu bất cứ lúc nào!",
-            
             SmartAimbot = "Smart Aimbot [M]",
             AimbotFOV = "Aimbot FOV",
             AimbotSmooth = "Mượt Aimbot",
@@ -314,16 +262,7 @@ Engine.Modules.I18n = {
             KeyVal = "Mã Key: ",
             KeyWebBtn = "🌐 Trang Get Key 24h: getkeyfree24h.netlify.app",
             KeyDiscordBtn = "💬 Tham Gia Server Discord: discord.gg/rMJAhJwgW",
-            SwitchLangBtn = "🌐 Chuyển Ngôn Ngữ / Switch Language (VN ➔ EN)",
-            BtnClose = "Đóng Menu",
-            BtnCloseMobile = "✕ ĐÓNG MENU (MOBILE/PC)",
-            SecUnload = "🛑 GỠ BỎ SCRIPT & DỌN DẸP",
-            UnloadDesc = "Tắt sạch toàn bộ Aimbot, ESP, Farm, Fly, khôi phục tốc độ/ánh sáng và gỡ bỏ giao diện GUI.",
-            BtnUnload = "🗑️ XÓA TẤT CẢ SCRIPT & TẮT TÍNH NĂNG",
-            UnloadConfirm = "⚠️ Bạn có chắc chắn muốn TẮT SẠCH TÍNH NĂNG và GỠ BỎ TOÀN BỘ SCRIPT không?",
-            UnloadSuccess = "✓ Đã gỡ bỏ toàn bộ Script và tắt sạch tính năng thành công!",
-            BtnCancel = "✕ HỦY BỎ",
-            BtnConfirm = "✔️ XÁC NHẬN GỠ"
+            SwitchLangBtn = "🌐 Chuyển Ngôn Ngữ / Switch Language (VN ➔ EN)"
         },
         EN = {
             Title = "RB ZOO V8.5 • CLASS QUID VIP",
@@ -377,13 +316,6 @@ Engine.Modules.I18n = {
             EnableNotifications = "Enable Notifications",
             FPSBooster = "FPS Booster (Fix Lag)",
             
-            SecStreamer = "🎥 STREAMER & ANTI-RECORDING MODE",
-            StreamerMode = "🎥 Streamer Mode (Hide UI & Visuals)",
-            StreamerHideESP = "👁️ Hide ESP Visuals when Recording",
-            StreamerHideHUD = "📊 Hide Hunter HUD when Recording",
-            StreamerDesc = "Streamer Recording Mode: Hides all UI, ESP, HUD, and Notifications so your recording looks 100% legit. Cheats (Aimbot, Farm, Fly, Speed) still run in the background!",
-            StreamerSecretHint = "💡 Tap the top-left invisible corner or press [RightShift] to reopen Menu anytime!",
-            
             SmartAimbot = "Smart Aimbot [M]",
             AimbotFOV = "Aimbot FOV",
             AimbotSmooth = "Aimbot Smoothness",
@@ -423,16 +355,7 @@ Engine.Modules.I18n = {
             KeyVal = "Current Key: ",
             KeyWebBtn = "🌐 Get Key 24h Web: getkeyfree24h.netlify.app",
             KeyDiscordBtn = "💬 Join Discord Server: discord.gg/rMJAhJwgW",
-            SwitchLangBtn = "🌐 Switch Language / Chuyển Ngôn Ngữ (EN ➔ VN)",
-            BtnClose = "Close Menu",
-            BtnCloseMobile = "✕ CLOSE MENU (MOBILE/PC)",
-            SecUnload = "🛑 SCRIPT UNLOAD & CLEANUP",
-            UnloadDesc = "Disables all Aimbot, ESP, Farm, Fly, restores speed/lighting and completely removes GUI.",
-            BtnUnload = "🗑️ UNLOAD SCRIPT & DISABLE ALL",
-            UnloadConfirm = "⚠️ Are you sure you want to DISABLE ALL FEATURES and UNLOAD THE SCRIPT?",
-            UnloadSuccess = "✓ Successfully unloaded script and disabled all features!",
-            BtnCancel = "✕ CANCEL",
-            BtnConfirm = "✔️ CONFIRM UNLOAD"
+            SwitchLangBtn = "🌐 Switch Language / Chuyển Ngôn Ngữ (EN ➔ VN)"
         }
     },
 
@@ -457,7 +380,11 @@ Engine.Modules.I18n = {
 -- ==========================================
 Engine.Modules.LoadingScreen = {
     Show = function(self)
-        local sg = SafeCreateScreenGui("RBZoo_V8_LoadingScreen")
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_V8_LoadingScreen"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
 
         -- 🌌 Cyber Dark Background with Floating Particles
         local bg = Instance.new("Frame")
@@ -689,7 +616,7 @@ Engine.Modules.KeySystem = {
     RepoName = "getkey",
     FilePath = "keys.json",
     KeySaveFile = "RBZoo_SavedKey_V8.json",
-    AdminKey = _XD("knknhjhh", 90), -- obfuscated: decoded at runtime only
+    AdminKey = "14142022",
     CurrentKey = nil,
     CurrentKeyType = nil,
 
@@ -905,7 +832,12 @@ Engine.Modules.KeySystem = {
         end
 
         local verified = false
-        local sg = SafeCreateScreenGui("RBZoo_KeySystem_UI")
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_KeySystem_UI"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
 
         local bg = Instance.new("Frame")
         bg.Size = UDim2.new(1, 0, 1, 0)
@@ -928,7 +860,7 @@ Engine.Modules.KeySystem = {
         -- Nút chuyển đổi ngôn ngữ trên cửa sổ Key System (VN / EN)
         local btnPromptLang = Instance.new("TextButton")
         btnPromptLang.Size = UDim2.new(0, 68, 0, 26)
-        btnPromptLang.Position = UDim2.new(1, -114, 0, 12)
+        btnPromptLang.Position = UDim2.new(1, -80, 0, 12)
         btnPromptLang.BackgroundColor3 = Color3.fromRGB(24, 34, 52)
         btnPromptLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
         btnPromptLang.Font = Enum.Font.GothamBold
@@ -936,24 +868,6 @@ Engine.Modules.KeySystem = {
         btnPromptLang.TextColor3 = Color3.fromRGB(0, 255, 180)
         btnPromptLang.Parent = card
         Instance.new("UICorner", btnPromptLang).CornerRadius = UDim.new(0, 8)
-
-        -- Nút Đóng [X] Key System UI (dành cho Mobile & PC)
-        local isCancelled = false
-        local btnKeyClose = Instance.new("TextButton")
-        btnKeyClose.Size = UDim2.new(0, 28, 0, 28)
-        btnKeyClose.Position = UDim2.new(1, -38, 0, 11)
-        btnKeyClose.BackgroundColor3 = Color3.fromRGB(220, 45, 60)
-        btnKeyClose.Text = "✕"
-        btnKeyClose.Font = Enum.Font.GothamBlack
-        btnKeyClose.TextSize = 14
-        btnKeyClose.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btnKeyClose.Parent = card
-        Instance.new("UICorner", btnKeyClose).CornerRadius = UDim.new(0, 8)
-
-        btnKeyClose.MouseButton1Click:Connect(function()
-            isCancelled = true
-            sg:Destroy()
-        end)
 
         -- Tự động hiển thị Logo bun.jpg nếu có
         local logoAsset = Engine:GetLogoAsset()
@@ -970,7 +884,7 @@ Engine.Modules.KeySystem = {
         end
 
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, - (headerOffset + 148), 0, 35)
+        title.Size = UDim2.new(1, - (headerOffset + 110), 0, 35)
         title.Position = UDim2.new(0, headerOffset + 20, 0, 15)
         title.BackgroundTransparency = 1
         title.Text = Engine.Modules.I18n:Get("KeySystemTitle")
@@ -1127,8 +1041,8 @@ Engine.Modules.KeySystem = {
             end)
         end)
 
-        repeat task.wait(0.1) until (verified or isCancelled)
-        return verified
+        repeat task.wait(0.1) until verified
+        return true
     end
 }
 
@@ -1186,7 +1100,11 @@ Engine.Modules.TeamForce = {
 Engine.Modules.NotificationManager = {
     Container = nil,
     Init = function(self)
-        local sg = SafeCreateScreenGui("RBZoo_V8_Notifications")
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_V8_Notifications"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
         
         self.Container = Instance.new("Frame")
         self.Container.Size = UDim2.new(0, 320, 1, -20)
@@ -1203,9 +1121,7 @@ Engine.Modules.NotificationManager = {
     
     Notify = function(self, title, text, duration)
         if Engine.Modules.ConfigManager and Engine.Modules.ConfigManager.Settings then
-            if Engine.Modules.ConfigManager.Settings.EnableNotifications == false 
-               or Engine.Modules.ConfigManager.Settings.SilentMode == true 
-               or Engine.Modules.ConfigManager.Settings.StreamerMode == true then 
+            if Engine.Modules.ConfigManager.Settings.EnableNotifications == false or Engine.Modules.ConfigManager.Settings.SilentMode == true then 
                 return 
             end
         end
@@ -1375,7 +1291,11 @@ Engine.Modules.HunterHUD = {
     Gui = nil,
     Labels = {},
     Init = function(self)
-        local sg = SafeCreateScreenGui("RBZoo_Hunter_HUD_V8")
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_Hunter_HUD_V8"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
         self.Gui = sg
         
         local frame = Instance.new("Frame")
@@ -1482,9 +1402,7 @@ Engine.Modules.HunterHUD = {
             local ticks = 0
             while task.wait(0.1) do
                 ticks = ticks + 1
-                local shouldShow = Engine.Modules.ConfigManager.Settings.ShowHUD 
-                    and not (Engine.Modules.ConfigManager.Settings.StreamerMode and Engine.Modules.ConfigManager.Settings.StreamerHideHUD)
-                if not shouldShow then
+                if not Engine.Modules.ConfigManager.Settings.ShowHUD then
                     frame.Visible = false
                 else
                     frame.Visible = true
@@ -2255,40 +2173,13 @@ Engine.Modules.ESPManager = {
         }
     end,
 
-    Connection = nil,
-    ScanThread = nil,
-
-    Destroy = function(self)
-        if self.Connection then
-            pcall(function() self.Connection:Disconnect() end)
-            self.Connection = nil
-        end
-        if self.ScanThread then
-            pcall(function() task.cancel(self.ScanThread) end)
-            self.ScanThread = nil
-        end
-        for key, drawings in pairs(self.Cache) do
-            self:RemoveDrawings(drawings)
-        end
-        table.clear(self.Cache)
-        for key, hl in pairs(self.ChamsCache) do
-            pcall(function() hl:Destroy() end)
-        end
-        table.clear(self.ChamsCache)
-        if self.TargetDrawings then
-            pcall(function() self.TargetDrawings.Ring:Remove() end)
-            pcall(function() self.TargetDrawings.Label:Remove() end)
-            self.TargetDrawings = nil
-        end
-    end,
-
     Init = function(self)
         self.TargetDrawings = {
             Ring = SafeDrawing("Circle", {Thickness = 2.5, NumSides = 32, Color = Color3.fromRGB(255, 215, 0), Filled = false}),
             Label = SafeDrawing("Text", {Size = 13, Center = true, Outline = true, Color = Color3.fromRGB(255, 215, 0)})
         }
 
-        self.ScanThread = task.spawn(function()
+        task.spawn(function()
             while task.wait(1.0) do
                 local list = {}
                 local animalFolder = Engine.Services.Workspace:FindFirstChild("Gameplay") 
@@ -2312,12 +2203,10 @@ Engine.Modules.ESPManager = {
                 self.CachedAnimals = list
             end
         end)
-        Engine:AddThread(self.ScanThread)
 
-        self.Connection = Engine.Services.RunService.RenderStepped:Connect(function()
+        Engine.Services.RunService.RenderStepped:Connect(function()
             self:Update()
         end)
-        Engine:AddConnection(self.Connection)
     end,
 
     RemoveDrawings = function(self, drawings)
@@ -2354,7 +2243,7 @@ Engine.Modules.ESPManager = {
 
     Update = function(self)
         local settings = Engine.Modules.ConfigManager.Settings
-        local masterEnabled = (settings.ESP_Enabled or settings.ESP) and not (settings.StreamerMode and settings.StreamerHideESP)
+        local masterEnabled = settings.ESP_Enabled or settings.ESP
         
         if not masterEnabled then
             for objKey, drawings in pairs(self.Cache) do
@@ -2622,22 +2511,18 @@ Engine.Modules.ESPManager = {
 -- ==========================================
 -- [10] EXPLOITS (AIMBOT, FLY, HITBOX OPTIMIZED)
 -- ==========================================
-Engine.FOVCircle = SafeDrawing("Circle", {
-    Thickness = 1.5,
-    Color = Color3.fromRGB(0, 255, 120),
-    Transparency = 0.8,
-    Filled = false,
-    NumSides = 64
-})
-local fovCircle = Engine.FOVCircle
+local fovCircle = Drawing.new("Circle")
+fovCircle.Thickness = 1.5
+fovCircle.Color = Color3.fromRGB(0, 255, 120)
+fovCircle.Transparency = 0.8
+fovCircle.Filled = false
+fovCircle.NumSides = 64
 
-Engine:AddConnection(Engine.Services.RunService.RenderStepped:Connect(function()
+Engine.Services.RunService.RenderStepped:Connect(function()
     local mousePos = Engine.Services.UIS:GetMouseLocation()
-    if fovCircle and fovCircle.Position then
-        fovCircle.Radius = Engine.Modules.ConfigManager.Settings.AimbotFOV
-        fovCircle.Position = mousePos
-        fovCircle.Visible = Engine.Modules.ConfigManager.Settings.Aimbot and not Engine.Modules.ConfigManager.Settings.StreamerMode
-    end
+    fovCircle.Radius = Engine.Modules.ConfigManager.Settings.AimbotFOV
+    fovCircle.Position = mousePos
+    fovCircle.Visible = Engine.Modules.ConfigManager.Settings.Aimbot
     
     if Engine.Modules.ConfigManager.Settings.Aimbot and Engine.State.CurrentTarget and IsTargetValid(Engine.State.CurrentTarget) then
         local targetPos = Engine.State.CurrentTarget.Position
@@ -2647,10 +2532,10 @@ Engine:AddConnection(Engine.Services.RunService.RenderStepped:Connect(function()
         end
         Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, targetPos), Engine.Modules.ConfigManager.Settings.AimbotSmooth)
     end
-end))
+end)
 
 local bv, bg = nil, nil
-Engine:AddConnection(Engine.Services.RunService.RenderStepped:Connect(function()
+Engine.Services.RunService.RenderStepped:Connect(function()
     local char = LocalPlayer.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -2689,9 +2574,9 @@ Engine:AddConnection(Engine.Services.RunService.RenderStepped:Connect(function()
         if bg then bg:Destroy(); bg = nil end
         if hum then hum.PlatformStand = false end
     end
-end))
+end)
 
-Engine:AddConnection(Engine.Services.RunService.Stepped:Connect(function()
+Engine.Services.RunService.Stepped:Connect(function()
     if Engine.Modules.ConfigManager.Settings.Noclip and LocalPlayer.Character then
         for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
             if part:IsA("BasePart") and part.CanCollide then
@@ -2699,9 +2584,9 @@ Engine:AddConnection(Engine.Services.RunService.Stepped:Connect(function()
             end
         end
     end
-end))
+end)
 
-local hitboxThread = task.spawn(function()
+task.spawn(function()
     while task.wait(0.25) do
         if Engine.Modules.ConfigManager.Settings.HitboxSize > 2 then
             for _, plr in ipairs(Engine.Services.Players:GetPlayers()) do
@@ -2721,33 +2606,32 @@ local hitboxThread = task.spawn(function()
         end
     end
 end)
-Engine:AddThread(hitboxThread)
 
-Engine:AddConnection(Engine.Services.UIS.JumpRequest:Connect(function()
+Engine.Services.UIS.JumpRequest:Connect(function()
     if Engine.Modules.ConfigManager.Settings.InfJump then
         local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
         if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
     end
-end))
+end)
 
-Engine:AddConnection(LocalPlayer.Idled:Connect(function()
+LocalPlayer.Idled:Connect(function()
     if Engine.Modules.ConfigManager.Settings.AntiAFK then
         Engine.Services.VirtualUser:CaptureController()
         Engine.Services.VirtualUser:ClickButton2(Vector2.new())
     end
-end))
+end)
 
-Engine:AddConnection(LocalPlayer.CharacterAdded:Connect(function()
+LocalPlayer.CharacterAdded:Connect(function()
     Engine.Modules.FarmManager:Stop()
     task.wait(1.5)
     Engine.State.CurrentRole = DeterminePlayerRole(LocalPlayer)
     if Engine.Modules.ConfigManager.Settings.AutoFarm and (Engine.State.CurrentRole == "ZOOKEEPER" or Engine.State.CurrentRole == "OOF") then
         Engine.Modules.FarmManager:Start()
     end
-end))
+end)
 
 local lastDetectedRole = DeterminePlayerRole(LocalPlayer)
-Engine:AddConnection(Engine.Services.RunService.Heartbeat:Connect(function()
+Engine.Services.RunService.Heartbeat:Connect(function()
     local currentRole = DeterminePlayerRole(LocalPlayer)
     if currentRole ~= lastDetectedRole then
         local oldRole = lastDetectedRole
@@ -2764,7 +2648,7 @@ Engine:AddConnection(Engine.Services.RunService.Heartbeat:Connect(function()
             end
         end
     end
-end))
+end)
 
 -- ==========================================
 -- [11] UI CONTROLLER
@@ -2839,25 +2723,12 @@ Engine.Modules.UIController = {
     Init = function(self)
         self.ThemeFrames = {}
         self.ThemeLabels = {}
-        local sg = SafeCreateScreenGui("RBZoo_V8_UI_LiquidGlass")
+        local coreGui = LocalPlayer:WaitForChild("PlayerGui")
+        local sg = Instance.new("ScreenGui")
+        sg.Name = "RBZoo_V8_UI_LiquidGlass"
+        sg.ResetOnSpawn = false
+        sg.Parent = coreGui
         
-        -- Stealth Secret Touch Zone (Chạm góc trên cùng bên trái màn hình điện thoại để bật/tắt Menu trong Streamer Mode)
-        local stealthTrigger = Instance.new("TextButton")
-        stealthTrigger.Name = "RBZoo_StealthTrigger"
-        stealthTrigger.Size = UDim2.new(0, 50, 0, 50)
-        stealthTrigger.Position = UDim2.new(0, 0, 0, 0)
-        stealthTrigger.BackgroundTransparency = 1
-        stealthTrigger.Text = ""
-        stealthTrigger.Active = true
-        stealthTrigger.ZIndex = 999
-        stealthTrigger.Parent = sg
-
-        stealthTrigger.MouseButton1Click:Connect(function()
-            if self.MainFrame then
-                self.MainFrame.Visible = not self.MainFrame.Visible
-            end
-        end)
-
         -- Floating Ultra-Cyber Crystal Orb Logo Holder (Draggable Container)
         local logoHolder = Instance.new("Frame")
         logoHolder.Name = "RBZoo_LogoHolder"
@@ -3121,7 +2992,7 @@ Engine.Modules.UIController = {
         end)
 
         local title = Instance.new("TextLabel")
-        title.Size = UDim2.new(1, -(titleLeftPos + 355), 0, 26)
+        title.Size = UDim2.new(1, -(titleLeftPos + 330), 0, 26)
         title.Position = UDim2.new(0, titleLeftPos, 0, 8)
         title.BackgroundTransparency = 1
         title.Text = "⚡ CLASS QUID VIP • V8.5"
@@ -3132,7 +3003,7 @@ Engine.Modules.UIController = {
         table.insert(self.ChromaObjects, title)
 
         local authorLabel = Instance.new("TextLabel")
-        authorLabel.Size = UDim2.new(1, -(titleLeftPos + 355), 0, 16)
+        authorLabel.Size = UDim2.new(1, -(titleLeftPos + 330), 0, 16)
         authorLabel.Position = UDim2.new(0, titleLeftPos, 0, 32)
         authorLabel.BackgroundTransparency = 1
         authorLabel.Text = "👑 Owner: " .. Engine.Author .. "  |  VIP ENGINE 2026"
@@ -3143,8 +3014,8 @@ Engine.Modules.UIController = {
         authorLabel.Parent = topBar
 
         self.BtnTopLang = Instance.new("TextButton")
-        self.BtnTopLang.Size = UDim2.new(0, 54, 0, 28)
-        self.BtnTopLang.Position = UDim2.new(1, -332, 0, 15)
+        self.BtnTopLang.Size = UDim2.new(0, 66, 0, 28)
+        self.BtnTopLang.Position = UDim2.new(1, -320, 0, 15)
         self.BtnTopLang.BackgroundColor3 = Color3.fromRGB(230, 238, 252)
         self.BtnTopLang.Text = "🌐 " .. (Engine.Modules.ConfigManager.Settings.Language or "VN")
         self.BtnTopLang.Font = Enum.Font.GothamBold
@@ -3163,12 +3034,12 @@ Engine.Modules.UIController = {
         end)
 
         local btnTopDiscord = Instance.new("TextButton")
-        btnTopDiscord.Size = UDim2.new(0, 68, 0, 28)
-        btnTopDiscord.Position = UDim2.new(1, -274, 0, 15)
+        btnTopDiscord.Size = UDim2.new(0, 80, 0, 28)
+        btnTopDiscord.Position = UDim2.new(1, -248, 0, 15)
         btnTopDiscord.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
         btnTopDiscord.Text = "💬 Discord"
         btnTopDiscord.Font = Enum.Font.GothamBold
-        btnTopDiscord.TextSize = 10.5
+        btnTopDiscord.TextSize = 11
         btnTopDiscord.TextColor3 = Color3.fromRGB(255, 255, 255)
         btnTopDiscord.Parent = topBar
         Instance.new("UICorner", btnTopDiscord).CornerRadius = UDim.new(0, 8)
@@ -3180,12 +3051,12 @@ Engine.Modules.UIController = {
         -- Nút Chuyển Đổi Màu Giao Diện Menu (UI Theme: Dark / Light) đặt kế bên Get Key
         local isDarkTheme = (Engine.Modules.ConfigManager.Settings.UITheme == "Dark")
         self.BtnTopTheme = Instance.new("TextButton")
-        self.BtnTopTheme.Size = UDim2.new(0, 60, 0, 28)
-        self.BtnTopTheme.Position = UDim2.new(1, -202, 0, 15)
+        self.BtnTopTheme.Size = UDim2.new(0, 66, 0, 28)
+        self.BtnTopTheme.Position = UDim2.new(1, -162, 0, 15)
         self.BtnTopTheme.BackgroundColor3 = isDarkTheme and Color3.fromRGB(22, 32, 52) or Color3.fromRGB(220, 235, 255)
         self.BtnTopTheme.Text = isDarkTheme and "🌙 Tối" or "☀️ Sáng"
         self.BtnTopTheme.Font = Enum.Font.GothamBold
-        self.BtnTopTheme.TextSize = 10.5
+        self.BtnTopTheme.TextSize = 11
         self.BtnTopTheme.TextColor3 = isDarkTheme and Color3.fromRGB(0, 240, 255) or Color3.fromRGB(15, 25, 45)
         self.BtnTopTheme.Parent = topBar
         Instance.new("UICorner", self.BtnTopTheme).CornerRadius = UDim.new(0, 8)
@@ -3202,12 +3073,12 @@ Engine.Modules.UIController = {
         end)
 
         local btnTopGetKey = Instance.new("TextButton")
-        btnTopGetKey.Size = UDim2.new(0, 70, 0, 28)
-        btnTopGetKey.Position = UDim2.new(1, -138, 0, 15)
+        btnTopGetKey.Size = UDim2.new(0, 80, 0, 28)
+        btnTopGetKey.Position = UDim2.new(1, -90, 0, 15)
         btnTopGetKey.BackgroundColor3 = Color3.fromRGB(22, 35, 56)
         btnTopGetKey.Text = "🌐 Get Key"
         btnTopGetKey.Font = Enum.Font.GothamBold
-        btnTopGetKey.TextSize = 10.5
+        btnTopGetKey.TextSize = 11
         btnTopGetKey.TextColor3 = Color3.fromRGB(0, 240, 255)
         btnTopGetKey.Parent = topBar
         Instance.new("UICorner", btnTopGetKey).CornerRadius = UDim.new(0, 8)
@@ -3218,36 +3089,6 @@ Engine.Modules.UIController = {
             end
             if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
                 Engine.Modules.NotificationManager:Notify("Get Key", "✓ Đã sao chép Link Get Key 24h!", 3)
-            end
-        end)
-
-        -- Nút Đóng Menu [✕] (Đặc biệt tối ưu cho Điện thoại Mobile & PC)
-        local btnCloseMenu = Instance.new("TextButton")
-        btnCloseMenu.Name = "BtnCloseMenu"
-        btnCloseMenu.Size = UDim2.new(0, 32, 0, 32)
-        btnCloseMenu.Position = UDim2.new(1, -44, 0, 13)
-        btnCloseMenu.BackgroundColor3 = Color3.fromRGB(235, 45, 65)
-        btnCloseMenu.Text = "✕"
-        btnCloseMenu.Font = Enum.Font.GothamBlack
-        btnCloseMenu.TextSize = 15
-        btnCloseMenu.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btnCloseMenu.Parent = topBar
-        Instance.new("UICorner", btnCloseMenu).CornerRadius = UDim.new(0, 9)
-        self:AddHoverAnim(btnCloseMenu, Color3.fromRGB(235, 45, 65), Color3.fromRGB(255, 75, 95))
-        
-        btnCloseMenu.MouseButton1Click:Connect(function()
-            Engine.Services.TweenService:Create(self.MainFrame, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-                Size = UDim2.new(0, 520, 0, 360),
-                BackgroundTransparency = 1
-            }):Play()
-            task.delay(0.18, function()
-                self.MainFrame.Visible = false
-                self.MainFrame.Size = UDim2.new(0, 580, 0, 400)
-                local isDark = (Engine.Modules.ConfigManager.Settings.UITheme == "Dark")
-                self.MainFrame.BackgroundTransparency = isDark and 0.18 or 0.42
-            end)
-            if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Notify then
-                Engine.Modules.NotificationManager:Notify("Menu", (Engine.Modules.ConfigManager.Settings.Language == "VN") and "Đã đóng Menu! Chạm Logo để mở lại bất cứ lúc nào." or "Menu Closed! Tap Logo to reopen anytime.", 2.5)
             end
         end)
 
@@ -3267,7 +3108,7 @@ Engine.Modules.UIController = {
         
         self:BuildTabs(contentArea)
         
-        local chromaLoopThread = task.spawn(function()
+        task.spawn(function()
             while task.wait(0.08) do
                 if self.MainFrame and self.MainFrame.Visible then
                     local hue = (tick() % 6) / 6
@@ -3282,10 +3123,9 @@ Engine.Modules.UIController = {
                 end
             end
         end)
-        Engine:AddThread(chromaLoopThread)
         
         -- HOTKEYS QUICK CONTROLS: P (Farm), M (Aimbot), F (Fly), Q/E (Skill), RightShift (UI)
-        Engine:AddConnection(Engine.Services.UIS.InputBegan:Connect(function(input)
+        Engine.Services.UIS.InputBegan:Connect(function(input)
             if Engine.Services.UIS:GetFocusedTextBox() then return end
             if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
 
@@ -3326,7 +3166,7 @@ Engine.Modules.UIController = {
                     Engine.Modules.NotificationManager:Notify("Skill Hotkey", "Skill Activated! [" .. input.KeyCode.Name .. "]", 1.5)
                 end
             end
-        end))
+        end)
     end,
     
     CreateSectionHeader = function(self, parent, translationKey)
@@ -3525,77 +3365,6 @@ Engine.Modules.UIController = {
         createTimeBtn("TimeNight", 0.50, 0.24, Color3.fromRGB(22, 32, 52), Color3.fromRGB(0, 240, 255), "Dark", "🌙 Đã chuyển sang Thời Gian Buổi Tối!")
         createTimeBtn("TimeDefault", 0.75, 0.24, Color3.fromRGB(30, 45, 65), Color3.fromRGB(0, 255, 180), "Normal", "🍃 Đã khôi phục Thời Gian Mặc Định!")
         
-        -- Phần Chế Độ Quay Video & Chống Lộ (Streamer Mode / Anti-Recording)
-        self:CreateSectionHeader(pageForce, "SecStreamer")
-
-        local streamerCard = Instance.new("Frame")
-        streamerCard.Size = UDim2.new(1, -10, 0, 84)
-        streamerCard.BackgroundColor3 = Color3.fromRGB(16, 22, 36)
-        streamerCard.BackgroundTransparency = 0.45
-        streamerCard.Parent = pageForce
-        Instance.new("UICorner", streamerCard).CornerRadius = UDim.new(0, 10)
-
-        local streamerCardStroke = Instance.new("UIStroke")
-        streamerCardStroke.Thickness = 1.2
-        streamerCardStroke.Color = Color3.fromRGB(0, 240, 255)
-        streamerCardStroke.Transparency = 0.75
-        streamerCardStroke.Parent = streamerCard
-
-        local streamerDesc = Instance.new("TextLabel")
-        streamerDesc.Size = UDim2.new(1, -16, 0, 46)
-        streamerDesc.Position = UDim2.new(0, 8, 0, 4)
-        streamerDesc.BackgroundTransparency = 1
-        streamerDesc.Text = Engine.Modules.I18n:Get("StreamerDesc")
-        streamerDesc.Font = Enum.Font.GothamMedium
-        streamerDesc.TextSize = 10
-        streamerDesc.TextColor3 = Color3.fromRGB(200, 220, 245)
-        streamerDesc.TextWrapped = true
-        streamerDesc.TextXAlignment = Enum.TextXAlignment.Left
-        streamerDesc.Parent = streamerCard
-        self:RegisterLabel(streamerDesc, "StreamerDesc")
-
-        local streamerHint = Instance.new("TextLabel")
-        streamerHint.Size = UDim2.new(1, -16, 0, 24)
-        streamerHint.Position = UDim2.new(0, 8, 0, 52)
-        streamerHint.BackgroundTransparency = 1
-        streamerHint.Text = Engine.Modules.I18n:Get("StreamerSecretHint")
-        streamerHint.Font = Enum.Font.GothamBold
-        streamerHint.TextSize = 9.5
-        streamerHint.TextColor3 = Color3.fromRGB(0, 255, 180)
-        streamerHint.TextWrapped = true
-        streamerHint.TextXAlignment = Enum.TextXAlignment.Left
-        streamerHint.Parent = streamerCard
-        self:RegisterLabel(streamerHint, "StreamerSecretHint")
-
-        self:CreateToggle(pageForce, "StreamerMode", "StreamerMode", function(v)
-            if v then
-                self.MainFrame.Visible = false
-                if self.LogoButton and self.LogoButton.Parent then
-                    self.LogoButton.Parent.Visible = false
-                end
-                if Engine.Modules.HunterHUD and Engine.Modules.HunterHUD.Gui then
-                    local hf = Engine.Modules.HunterHUD.Gui:FindFirstChildOfClass("Frame")
-                    if hf then hf.Visible = false end
-                end
-                if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Container then
-                    Engine.Modules.NotificationManager.Container.Visible = false
-                end
-            else
-                if self.LogoButton and self.LogoButton.Parent then
-                    self.LogoButton.Parent.Visible = true
-                end
-                if Engine.Modules.HunterHUD and Engine.Modules.HunterHUD.Gui and Engine.Modules.ConfigManager.Settings.ShowHUD then
-                    local hf = Engine.Modules.HunterHUD.Gui:FindFirstChildOfClass("Frame")
-                    if hf then hf.Visible = true end
-                end
-                if Engine.Modules.NotificationManager and Engine.Modules.NotificationManager.Container then
-                    Engine.Modules.NotificationManager.Container.Visible = true
-                end
-            end
-        end)
-        self:CreateToggle(pageForce, "StreamerHideESP", "StreamerHideESP")
-        self:CreateToggle(pageForce, "StreamerHideHUD", "StreamerHideHUD")
-
         self:CreateSectionHeader(pageCombat, "SecCombat")
         self:CreateToggle(pageCombat, "SmartAimbot", "Aimbot")
         self:CreateSlider(pageCombat, "AimbotFOV", 50, 600, "AimbotFOV")
@@ -3768,127 +3537,8 @@ Engine.Modules.UIController = {
         btnLogout.MouseButton1Click:Connect(function()
             Engine.Modules.KeySystem:Logout()
         end)
-
-        self:CreateSectionHeader(pageKey, "SecUnload")
-        local unloadCard = Instance.new("Frame")
-        unloadCard.Size = UDim2.new(1, -10, 0, 110)
-        unloadCard.BackgroundColor3 = Color3.fromRGB(24, 16, 22)
-        unloadCard.BackgroundTransparency = 0.45
-        unloadCard.Parent = pageKey
-        Instance.new("UICorner", unloadCard).CornerRadius = UDim.new(0, 12)
-
-        local unloadStroke = Instance.new("UIStroke")
-        unloadStroke.Thickness = 1.2
-        unloadStroke.Color = Color3.fromRGB(255, 60, 75)
-        unloadStroke.Transparency = 0.6
-        unloadStroke.Parent = unloadCard
-
-        local unloadDesc = Instance.new("TextLabel")
-        unloadDesc.Size = UDim2.new(1, -24, 0, 36)
-        unloadDesc.Position = UDim2.new(0, 12, 0, 10)
-        unloadDesc.BackgroundTransparency = 1
-        unloadDesc.Text = Engine.Modules.I18n:Get("UnloadDesc")
-        unloadDesc.Font = Enum.Font.GothamMedium
-        unloadDesc.TextSize = 10.5
-        unloadDesc.TextColor3 = Color3.fromRGB(235, 190, 195)
-        unloadDesc.TextWrapped = true
-        unloadDesc.TextXAlignment = Enum.TextXAlignment.Left
-        unloadDesc.Parent = unloadCard
-        self:RegisterLabel(unloadDesc, "UnloadDesc")
-
-        local btnUnload = Instance.new("TextButton")
-        btnUnload.Size = UDim2.new(1, -24, 0, 36)
-        btnUnload.Position = UDim2.new(0, 12, 0, 58)
-        btnUnload.BackgroundColor3 = Color3.fromRGB(225, 35, 50)
-        btnUnload.Text = Engine.Modules.I18n:Get("BtnUnload")
-        btnUnload.Font = Enum.Font.GothamBlack
-        btnUnload.TextSize = 11.5
-        btnUnload.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btnUnload.Parent = unloadCard
-        Instance.new("UICorner", btnUnload).CornerRadius = UDim.new(0, 8)
-        self:AddHoverAnim(btnUnload, Color3.fromRGB(225, 35, 50), Color3.fromRGB(255, 55, 70))
-        self:RegisterLabel(btnUnload, "BtnUnload")
-
-        btnUnload.MouseButton1Click:Connect(function()
-            local confirmOverlay = Instance.new("Frame")
-            confirmOverlay.Size = UDim2.new(1, 0, 1, 0)
-            confirmOverlay.BackgroundColor3 = Color3.fromRGB(6, 8, 14)
-            confirmOverlay.BackgroundTransparency = 0.2
-            confirmOverlay.ZIndex = 100
-            confirmOverlay.Parent = self.MainFrame
-            Instance.new("UICorner", confirmOverlay).CornerRadius = UDim.new(0, 20)
-
-            local modal = Instance.new("Frame")
-            modal.Size = UDim2.new(0, 380, 0, 170)
-            modal.Position = UDim2.new(0.5, -190, 0.5, -85)
-            modal.BackgroundColor3 = Color3.fromRGB(16, 20, 32)
-            modal.ZIndex = 101
-            modal.Parent = confirmOverlay
-            Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 14)
-
-            local modalStroke = Instance.new("UIStroke")
-            modalStroke.Thickness = 2
-            modalStroke.Color = Color3.fromRGB(255, 60, 75)
-            modalStroke.Parent = modal
-
-            local modalTitle = Instance.new("TextLabel")
-            modalTitle.Size = UDim2.new(1, -20, 0, 26)
-            modalTitle.Position = UDim2.new(0, 10, 0, 12)
-            modalTitle.BackgroundTransparency = 1
-            modalTitle.Text = "🛑 XÁC NHẬN GỠ BỎ / UNLOAD SCRIPT"
-            modalTitle.Font = Enum.Font.GothamBlack
-            modalTitle.TextSize = 13
-            modalTitle.TextColor3 = Color3.fromRGB(255, 70, 85)
-            modalTitle.ZIndex = 102
-            modalTitle.Parent = modal
-
-            local modalMsg = Instance.new("TextLabel")
-            modalMsg.Size = UDim2.new(1, -30, 0, 48)
-            modalMsg.Position = UDim2.new(0, 15, 0, 42)
-            modalMsg.BackgroundTransparency = 1
-            modalMsg.Text = Engine.Modules.I18n:Get("UnloadConfirm")
-            modalMsg.Font = Enum.Font.GothamMedium
-            modalMsg.TextSize = 11
-            modalMsg.TextColor3 = Color3.fromRGB(225, 235, 250)
-            modalMsg.TextWrapped = true
-            modalMsg.ZIndex = 102
-            modalMsg.Parent = modal
-
-            local btnConfirm = Instance.new("TextButton")
-            btnConfirm.Size = UDim2.new(0.44, 0, 0, 36)
-            btnConfirm.Position = UDim2.new(0.04, 0, 1, -48)
-            btnConfirm.BackgroundColor3 = Color3.fromRGB(225, 35, 50)
-            btnConfirm.Text = Engine.Modules.I18n:Get("BtnConfirm")
-            btnConfirm.Font = Enum.Font.GothamBlack
-            btnConfirm.TextSize = 11
-            btnConfirm.TextColor3 = Color3.fromRGB(255, 255, 255)
-            btnConfirm.ZIndex = 102
-            btnConfirm.Parent = modal
-            Instance.new("UICorner", btnConfirm).CornerRadius = UDim.new(0, 8)
-
-            local btnCancel = Instance.new("TextButton")
-            btnCancel.Size = UDim2.new(0.44, 0, 0, 36)
-            btnCancel.Position = UDim2.new(0.52, 0, 1, -48)
-            btnCancel.BackgroundColor3 = Color3.fromRGB(40, 52, 75)
-            btnCancel.Text = Engine.Modules.I18n:Get("BtnCancel")
-            btnCancel.Font = Enum.Font.GothamBlack
-            btnCancel.TextSize = 11
-            btnCancel.TextColor3 = Color3.fromRGB(220, 235, 255)
-            btnCancel.ZIndex = 102
-            btnCancel.Parent = modal
-            Instance.new("UICorner", btnCancel).CornerRadius = UDim.new(0, 8)
-
-            btnCancel.MouseButton1Click:Connect(function()
-                confirmOverlay:Destroy()
-            end)
-
-            btnConfirm.MouseButton1Click:Connect(function()
-                confirmOverlay:Destroy()
-                Engine:Unload()
-            end)
-        end)
         
-        for _, p in pairs(pages) do p.CanvasSize = UDim2.new(0, 0, 0, #p:GetChildren() * 56) end
+        for _, p in pairs(pages) do p.CanvasSize = UDim2.new(0, 0, 0, #p:GetChildren() * 52) end
     end,
     
     CreateToggle = function(self, parent, translationKey, configKey, callback)
@@ -4072,121 +3722,8 @@ Engine.Modules.UIController = {
 }
 
 -- ==========================================
--- [12] UNLOAD & BOOTSTRAPPER ENGINE
+-- [12] BOOTSTRAPPER
 -- ==========================================
-Engine.Unload = function(self)
-    self.Status = "Unloaded"
-    
-    -- 1. Tắt Auto Farm & Hunter AI
-    if self.Modules.FarmManager then
-        pcall(function() self.Modules.FarmManager:Stop() end)
-    end
-    
-    -- 2. Dọn dẹp Visual ESP Engine & Drawings
-    if self.Modules.ESPManager then
-        pcall(function() self.Modules.ESPManager:Destroy() end)
-    end
-    
-    -- 3. Hủy toàn bộ Connections đã lưu
-    for _, conn in ipairs(self.Connections) do
-        pcall(function()
-            if typeof(conn) == "RBXScriptConnection" then conn:Disconnect()
-            elseif typeof(conn) == "thread" then task.cancel(conn)
-            elseif typeof(conn) == "function" then conn() end
-        end)
-    end
-    table.clear(self.Connections)
-
-    -- 4. Hủy toàn bộ Threads chạy ngầm
-    for _, th in ipairs(self.Threads) do
-        pcall(function()
-            if typeof(th) == "thread" then task.cancel(th) end
-        end)
-    end
-    table.clear(self.Threads)
-
-    -- 5. Xóa vòng FOV Circle Drawing
-    if self.FOVCircle then
-        pcall(function()
-            if self.FOVCircle.Remove then self.FOVCircle:Remove() end
-        end)
-        self.FOVCircle = nil
-    end
-
-    -- 6. Khôi phục trạng thái mặc định của Nhân Vật
-    pcall(function()
-        local char = LocalPlayer.Character
-        if char then
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hum then
-                hum.WalkSpeed = 16
-                hum.PlatformStand = false
-            end
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
-            end
-            if hrp then
-                for _, child in ipairs(hrp:GetChildren()) do
-                    if child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
-                        child:Destroy()
-                    end
-                end
-            end
-        end
-    end)
-
-    -- 7. Khôi phục kích thước Hitbox của tất cả người chơi
-    pcall(function()
-        for _, plr in ipairs(self.Services.Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character then
-                local root = plr.Character:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.Size = Vector3.new(2, 2, 1)
-                    root.Transparency = 1
-                    root.CanCollide = false
-                end
-            end
-        end
-    end)
-
-    -- 8. Khôi phục Ánh Sáng Thế Giới
-    if self.Modules.LightingManager then
-        pcall(function() self.Modules.LightingManager:ApplyMode("Normal") end)
-    end
-
-    -- 9. Gỡ bỏ toàn bộ Giao Diện GUI
-    pcall(function()
-        local containers = {
-            LocalPlayer:FindFirstChild("PlayerGui"),
-            gethui and gethui(),
-            game:GetService("CoreGui")
-        }
-        local guisToDestroy = {
-            "RBZoo_V8_UI_LiquidGlass",
-            "RBZoo_Hunter_HUD_V8",
-            "RBZoo_V8_Notifications",
-            "RBZoo_KeySystem_UI",
-            "RBZoo_V8_LoadingScreen"
-        }
-        for _, container in ipairs(containers) do
-            if container then
-                for _, guiName in ipairs(guisToDestroy) do
-                    local g = container:FindFirstChild(guiName)
-                    if g then pcall(function() g:Destroy() end) end
-                end
-            end
-        end
-    end)
-
-    -- 10. Dọn dẹp Chroma Objects
-    if self.Modules.UIController then
-        table.clear(self.Modules.UIController.ChromaObjects)
-    end
-end
-
 Engine.BootAfterKey = function(self)
     self.Modules.NotificationManager:Init()
     self.Modules.HunterHUD:Init()
@@ -4212,10 +3749,7 @@ Engine.Boot = function(self)
     self.Modules.LoadingScreen:Show()
     
     local keyVerified = self.Modules.KeySystem:PromptKeyUI()
-    if not keyVerified then
-        self:Unload()
-        return
-    end
+    if not keyVerified then return end
     
     self:BootAfterKey()
 end
